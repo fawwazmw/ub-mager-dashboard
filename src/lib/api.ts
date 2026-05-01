@@ -78,9 +78,10 @@ class ApiClient {
     return this.request<any>("/admin/dashboard");
   }
 
-  async getDrivers(page = 1, perPage = 20, status = "") {
+  async getDrivers(page = 1, perPage = 20, status = "", search = "") {
     const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
     if (status) params.set("status", status);
+    if (search) params.set("search", search);
     return this.request<any[]>(`/admin/drivers?${params}`);
   }
 
@@ -97,9 +98,29 @@ class ApiClient {
     return this.request<any>(`/analytics/rides?period=${period}`);
   }
 
-  // Rides
+  async getDailyRevenue(days = 7) {
+    return this.request<any[]>(`/analytics/revenue/daily?days=${days}`);
+  }
+
+  async getDriverLeaderboard(limit = 10) {
+    return this.request<any[]>(`/analytics/drivers/leaderboard?limit=${limit}`);
+  }
+
+  // Rides (user-scoped)
   async getRideHistory(page = 1, perPage = 20) {
     return this.request<any[]>(`/rides/history?page=${page}&per_page=${perPage}`);
+  }
+
+  async getAdminRideDetail(rideId: string) {
+    return this.request<any>(`/admin/rides/${rideId}`);
+  }
+
+  // Admin rides (ALL rides)
+  async getAdminRides(page = 1, perPage = 20, status = "", search = "") {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (status) params.set("status", status);
+    if (search) params.set("search", search);
+    return this.request<any[]>(`/admin/rides?${params}`);
   }
 }
 

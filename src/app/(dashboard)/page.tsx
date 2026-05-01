@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
-import { Users, Car, Route, DollarSign, Activity, XCircle, TrendingUp, Clock } from "lucide-react";
+import { Users, Car, Route, DollarSign, Activity, XCircle, TrendingUp, Clock, MapPin, BarChart3, ArrowRight } from "lucide-react";
 import { clsx } from "clsx";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { Sparkline } from "@/components/ui/Sparkline";
 
 interface Stats {
   total_users: number;
@@ -26,6 +29,7 @@ interface RevenueStats {
 interface Ride {
   id: string;
   status: string;
+  passenger_name: string;
   pickup_address: string;
   dropoff_address: string;
   total_fare: number;
@@ -33,12 +37,25 @@ interface Ride {
   requested_at: string;
 }
 
-function StatCard({ label, value, icon: Icon, color = "primary", subtitle }: { label: string; value: string | number; icon: any; color?: string; subtitle?: string }) {
+interface DailyRevenue {
+  date: string;
+  revenue: number;
+  rides: number;
+}
+
+function StatCard({ label, value, icon: Icon, color = "primary", subtitle, sparkData }: { label: string; value: string | number; icon: any; color?: string; subtitle?: string; sparkData?: number[] }) {
   const colorMap: Record<string, string> = {
     primary: "text-primary bg-primary/10 border-primary/20",
     warning: "text-warning bg-warning/10 border-warning/20",
     destructive: "text-destructive bg-destructive/10 border-destructive/20",
     blue: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+  };
+
+  const sparkColors: Record<string, string> = {
+    primary: "hsl(142, 76%, 36%)",
+    warning: "hsl(38, 92%, 50%)",
+    destructive: "hsl(0, 84%, 60%)",
+    blue: "hsl(217, 91%, 60%)",
   };
 
   return (
@@ -49,8 +66,15 @@ function StatCard({ label, value, icon: Icon, color = "primary", subtitle }: { l
           <Icon size={16} />
         </div>
       </div>
-      <p className="text-2xl font-bold tabular-nums">{value}</p>
-      {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-2xl font-bold tabular-nums">{value}</p>
+          {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+        </div>
+        {sparkData && sparkData.length > 1 && (
+          <Sparkline data={sparkData} color={sparkColors[color] || sparkColors.primary} height={28} width={64} />
+        )}
+      </div>
     </div>
   );
 }
@@ -68,22 +92,32 @@ const statusColors: Record<string, string> = {
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [revenue, setRevenue] = useState<RevenueStats | null>(null);
+  const [dailyRevenue, setDailyRevenue] = useState<DailyRevenue[]>([]);
   const [recentRides, setRecentRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  async function fetchAll() {
+    const [statsRes, revenueRes, dailyRes, ridesRes] = await Promise.all([
+      api.getDashboardStats(),
+      api.getRevenueStats("month"),
+      api.getDailyRevenue(7),
+      api.getAdminRides(1, 5),
+    ]);
+    if (statsRes.success) setStats(statsRes.data);
+    if (revenueRes.success) setRevenue(revenueRes.data);
+    if (dailyRes.success) setDailyRevenue(dailyRes.data || []);
+    if (ridesRes.success) setRecentRides(ridesRes.data || []);
+    setLoading(false);
+    setLastUpdated(new Date());
+  }
+
   useEffect(() => {
-    async function fetchAll() {
-      const [statsRes, revenueRes, ridesRes] = await Promise.all([
-        api.getDashboardStats(),
-        api.getRevenueStats("month"),
-        api.getRideHistory(1, 5),
-      ]);
-      if (statsRes.success) setStats(statsRes.data);
-      if (revenueRes.success) setRevenue(revenueRes.data);
-      if (ridesRes.success) setRecentRides(ridesRes.data || []);
-      setLoading(false);
-    }
     fetchAll();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchAll, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -107,17 +141,32 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1">Platform overview and real-time metrics</p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-1">Platform overview and real-time metrics</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {lastUpdated && (
+            <span className="text-xs text-muted-foreground tabular-nums">
+              Updated {lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          )}
+          <button
+            onClick={fetchAll}
+            className="text-xs text-muted-foreground hover:text-primary border border-border px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Primary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Online Drivers" value={stats?.online_drivers || 0} icon={Activity} color="primary" subtitle={`of ${stats?.total_drivers || 0} total`} />
         <StatCard label="Active Rides" value={stats?.active_rides || 0} icon={Route} color="warning" subtitle="in progress now" />
-        <StatCard label="Completed Today" value={stats?.completed_today || 0} icon={Route} color="primary" subtitle="rides finished" />
-        <StatCard label="Revenue Today" value={`Rp ${(stats?.revenue_today || 0).toLocaleString("id-ID")}`} icon={DollarSign} color="primary" />
+        <StatCard label="Completed Today" value={stats?.completed_today || 0} icon={Route} color="primary" subtitle="rides finished" sparkData={dailyRevenue.map(d => d.rides)} />
+        <StatCard label="Revenue Today" value={`Rp ${(stats?.revenue_today || 0).toLocaleString("id-ID")}`} icon={DollarSign} color="primary" sparkData={dailyRevenue.map(d => d.revenue)} />
       </div>
 
       {/* Secondary Stats Row */}
@@ -127,6 +176,83 @@ export default function DashboardPage() {
         <StatCard label="Total Rides" value={stats?.total_rides || 0} icon={Route} color="blue" subtitle="all time" />
         <StatCard label="Cancelled Today" value={stats?.cancelled_today || 0} icon={XCircle} color="destructive" />
       </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <Link href="/live-tracking" className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-colors group">
+          <MapPin size={18} className="text-primary" />
+          <span className="text-sm flex-1">Live Map</span>
+          <ArrowRight size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+        </Link>
+        <Link href="/drivers?status=pending" className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-colors group">
+          <Car size={18} className="text-warning" />
+          <span className="text-sm flex-1">Pending Drivers</span>
+          <ArrowRight size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+        </Link>
+        <Link href="/rides?status=IN_PROGRESS" className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-colors group">
+          <Route size={18} className="text-blue-400" />
+          <span className="text-sm flex-1">Active Rides</span>
+          <ArrowRight size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+        </Link>
+        <Link href="/analytics/revenue" className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-colors group">
+          <BarChart3 size={18} className="text-primary" />
+          <span className="text-sm flex-1">Analytics</span>
+          <ArrowRight size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+        </Link>
+      </div>
+
+      {/* Revenue Chart */}
+      {dailyRevenue.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-medium">Revenue (Last 7 Days)</h2>
+            <TrendingUp size={16} className="text-muted-foreground" />
+          </div>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dailyRevenue} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis
+                  dataKey="date"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "hsl(215, 20%, 65%)", fontSize: 11 }}
+                  tickFormatter={(val) => new Date(val).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "hsl(215, 20%, 65%)", fontSize: 11 }}
+                  tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
+                  width={45}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "hsl(222, 47%, 8%)",
+                    border: "1px solid hsl(217, 33%, 17%)",
+                    borderRadius: "8px",
+                    fontSize: "12px",
+                  }}
+                  labelFormatter={(val) => new Date(val).toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" })}
+                  formatter={(value: number) => [`Rp ${value.toLocaleString("id-ID")}`, "Revenue"]}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="hsl(142, 76%, 36%)"
+                  strokeWidth={2}
+                  fill="url(#revenueGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Section: Revenue Summary + Recent Rides */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
