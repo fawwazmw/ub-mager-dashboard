@@ -7,7 +7,7 @@ interface SparklineProps {
   width?: number;
 }
 
-export function Sparkline({ data, color = "hsl(142, 76%, 36%)", height = 32, width = 80 }: SparklineProps) {
+export function Sparkline({ data, color = "hsl(42, 65%, 55%)", height = 32, width = 80 }: SparklineProps) {
   if (data.length < 2) return null;
 
   const max = Math.max(...data, 1);

@@ -271,14 +271,36 @@ export default function DriversPage() {
             </div>
 
             {/* Actions */}
-            {!selectedDriver.is_verified && (
-              <button
-                onClick={() => handleVerify(selectedDriver.id)}
-                className="w-full mt-4 bg-primary text-primary-foreground rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors"
-              >
-                Verify This Driver
-              </button>
-            )}
+            <div className="flex gap-2 mt-4">
+              {!selectedDriver.is_verified && (
+                <button
+                  onClick={() => handleVerify(selectedDriver.id)}
+                  className="flex-1 bg-primary text-primary-foreground rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Verify
+                </button>
+              )}
+              {selectedDriver.is_verified && (
+                <button
+                  onClick={async () => {
+                    const res = await api.toggleDriverOnline(selectedDriver.id, !selectedDriver.is_online);
+                    if (res.success) {
+                      toast("success", `Driver set to ${selectedDriver.is_online ? "offline" : "online"}`);
+                      fetchDrivers();
+                      setSelectedDriver(null);
+                    }
+                  }}
+                  className={clsx(
+                    "flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
+                    selectedDriver.is_online
+                      ? "bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20"
+                      : "bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"
+                  )}
+                >
+                  {selectedDriver.is_online ? "Force Offline" : "Set Online"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

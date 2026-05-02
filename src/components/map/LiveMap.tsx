@@ -113,7 +113,7 @@ export default function LiveMap({ wsDriverLocations }: LiveMapProps) {
           <Circle
             center={[-7.9526, 112.6060]}
             radius={500}
-            pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 0.05, weight: 1 }}
+            pathOptions={{ color: "#D4A843", fillColor: "#D4A843", fillOpacity: 0.05, weight: 1 }}
           />
 
           {/* Driver markers */}

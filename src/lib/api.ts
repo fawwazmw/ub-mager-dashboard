@@ -89,6 +89,17 @@ class ApiClient {
     return this.request(`/admin/drivers/${driverId}/verify`, { method: "PUT" });
   }
 
+  async getDriverDetail(driverId: string) {
+    return this.request<any>(`/admin/drivers/${driverId}`);
+  }
+
+  async toggleDriverOnline(driverId: string, isOnline: boolean) {
+    return this.request(`/admin/drivers/${driverId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ is_online: isOnline }),
+    });
+  }
+
   // Analytics
   async getRevenueStats(period = "today") {
     return this.request<any>(`/analytics/revenue?period=${period}`);
@@ -109,6 +120,17 @@ class ApiClient {
   // Rides (user-scoped)
   async getRideHistory(page = 1, perPage = 20) {
     return this.request<any[]>(`/rides/history?page=${page}&per_page=${perPage}`);
+  }
+
+  async getRideCountsByStatus() {
+    return this.request<any[]>("/admin/rides/counts");
+  }
+
+  async adminCancelRide(rideId: string, reason = "Cancelled by admin") {
+    return this.request(`/admin/rides/${rideId}/cancel`, {
+      method: "PUT",
+      body: JSON.stringify({ reason }),
+    });
   }
 
   async getAdminRideDetail(rideId: string) {

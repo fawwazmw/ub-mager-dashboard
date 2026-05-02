@@ -31,6 +31,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
+          <img src="/ubmagerlogo.png" alt="UB-Mager" className="w-16 h-16 rounded-xl mx-auto mb-3" />
           <h1 className="text-2xl font-bold">
             <span className="text-primary">UB</span>-Mager
           </h1>

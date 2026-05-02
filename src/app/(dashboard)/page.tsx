@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { Users, Car, Route, DollarSign, Activity, XCircle, TrendingUp, Clock, MapPin, BarChart3, ArrowRight } from "lucide-react";
+import { TimeAgo } from "@/components/ui/TimeAgo";
 import { clsx } from "clsx";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Sparkline } from "@/components/ui/Sparkline";
@@ -52,7 +53,7 @@ function StatCard({ label, value, icon: Icon, color = "primary", subtitle, spark
   };
 
   const sparkColors: Record<string, string> = {
-    primary: "hsl(142, 76%, 36%)",
+    primary: "hsl(42, 65%, 55%)",
     warning: "hsl(38, 92%, 50%)",
     destructive: "hsl(0, 84%, 60%)",
     blue: "hsl(217, 91%, 60%)",
@@ -85,7 +86,7 @@ const statusColors: Record<string, string> = {
   DRIVER_EN_ROUTE: "text-blue-400 bg-blue-400/10",
   ARRIVED_AT_PICKUP: "text-purple-400 bg-purple-400/10",
   IN_PROGRESS: "text-primary bg-primary/10",
-  COMPLETED: "text-green-400 bg-green-400/10",
+  COMPLETED: "text-amber-400 bg-amber-400/10",
   CANCELLED: "text-destructive bg-destructive/10",
 };
 
@@ -162,7 +163,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Primary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-page-in">
         <StatCard label="Online Drivers" value={stats?.online_drivers || 0} icon={Activity} color="primary" subtitle={`of ${stats?.total_drivers || 0} total`} />
         <StatCard label="Active Rides" value={stats?.active_rides || 0} icon={Route} color="warning" subtitle="in progress now" />
         <StatCard label="Completed Today" value={stats?.completed_today || 0} icon={Route} color="primary" subtitle="rides finished" sparkData={dailyRevenue.map(d => d.rides)} />
@@ -213,28 +214,28 @@ export default function DashboardPage() {
               <AreaChart data={dailyRevenue} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0} />
+                    <stop offset="5%" stopColor="hsl(42, 65%, 55%)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="hsl(42, 65%, 55%)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis
                   dataKey="date"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(215, 20%, 65%)", fontSize: 11 }}
+                  tick={{ fill: "hsl(225, 15%, 50%)", fontSize: 11 }}
                   tickFormatter={(val) => new Date(val).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(215, 20%, 65%)", fontSize: 11 }}
+                  tick={{ fill: "hsl(225, 15%, 50%)", fontSize: 11 }}
                   tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
                   width={45}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(222, 47%, 8%)",
-                    border: "1px solid hsl(217, 33%, 17%)",
+                    backgroundColor: "hsl(225, 40%, 11%)",
+                    border: "1px solid hsl(225, 28%, 16%)",
                     borderRadius: "8px",
                     fontSize: "12px",
                   }}
@@ -244,7 +245,7 @@ export default function DashboardPage() {
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="hsl(142, 76%, 36%)"
+                  stroke="hsl(42, 65%, 55%)"
                   strokeWidth={2}
                   fill="url(#revenueGradient)"
                 />
@@ -306,7 +307,7 @@ export default function DashboardPage() {
                       Rp {ride.total_fare.toLocaleString("id-ID")}
                     </td>
                     <td className="px-5 py-3 text-right text-muted-foreground text-xs">
-                      {timeAgo(ride.requested_at)}
+                      <TimeAgo date={ride.requested_at} />
                     </td>
                   </tr>
                 ))}
@@ -319,16 +320,4 @@ export default function DashboardPage() {
   );
 }
 
-function timeAgo(dateStr: string): string {
-  const now = new Date();
-  const date = new Date(dateStr);
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
 
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  return `${diffDay}d ago`;
-}

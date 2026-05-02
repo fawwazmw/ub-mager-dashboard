@@ -2,9 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
 import { ArrowLeft, MapPin, User, Car, Clock, DollarSign, CheckCircle, XCircle } from "lucide-react";
 import { clsx } from "clsx";
+import { CopyButton } from "@/components/ui/CopyButton";
+import { useToast } from "@/components/ui/Toast";
+
+const RideMap = dynamic(() => import("@/components/map/RideMap"), { ssr: false });
 
 interface RideDetail {
   id: string;
@@ -46,7 +51,7 @@ const statusColors: Record<string, string> = {
   DRIVER_EN_ROUTE: "text-blue-400 bg-blue-400/10 border-blue-400/20",
   ARRIVED_AT_PICKUP: "text-purple-400 bg-purple-400/10 border-purple-400/20",
   IN_PROGRESS: "text-primary bg-primary/10 border-primary/20",
-  COMPLETED: "text-green-400 bg-green-400/10 border-green-400/20",
+  COMPLETED: "text-amber-400 bg-amber-400/10 border-amber-400/20",
   CANCELLED: "text-destructive bg-destructive/10 border-destructive/20",
 };
 
@@ -55,6 +60,7 @@ export default function RideDetailPage() {
   const router = useRouter();
   const [ride, setRide] = useState<RideDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     async function fetchRide() {
@@ -97,7 +103,7 @@ export default function RideDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-6 animate-page-in">
         <button
           onClick={() => router.back()}
           className="text-muted-foreground hover:text-foreground transition-colors"
@@ -106,11 +112,34 @@ export default function RideDetailPage() {
         </button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold">Ride Detail</h1>
-          <p className="text-xs text-muted-foreground font-mono mt-0.5">{ride.id}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-xs text-muted-foreground font-mono">{ride.id}</p>
+            <CopyButton text={ride.id} />
+          </div>
         </div>
-        <span className={clsx("text-xs px-3 py-1.5 rounded-lg border", statusColors[ride.status])}>
-          {ride.status}
-        </span>
+        <div className="flex items-center gap-2">
+          {ride.status !== "COMPLETED" && ride.status !== "CANCELLED" && (
+            <button
+              onClick={async () => {
+                const res = await api.adminCancelRide(ride.id);
+                if (res.success) {
+                  toast("success", "Ride cancelled");
+                  // Refresh
+                  const updated = await api.getAdminRideDetail(ride.id);
+                  if (updated.success) setRide(updated.data);
+                } else {
+                  toast("error", "Failed to cancel ride");
+                }
+              }}
+              className="text-xs bg-destructive/10 text-destructive border border-destructive/20 px-3 py-1.5 rounded-lg hover:bg-destructive/20 transition-colors"
+            >
+              Cancel Ride
+            </button>
+          )}
+          <span className={clsx("text-xs px-3 py-1.5 rounded-lg border", statusColors[ride.status])}>
+            {ride.status}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -142,6 +171,16 @@ export default function RideDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Map Preview */}
+          <RideMap
+            pickupLat={ride.pickup_lat}
+            pickupLng={ride.pickup_lng}
+            pickupAddress={ride.pickup_address}
+            dropoffLat={ride.dropoff_lat}
+            dropoffLng={ride.dropoff_lng}
+            dropoffAddress={ride.dropoff_address}
+          />
 
           {/* People */}
           <div className="grid grid-cols-2 gap-4">

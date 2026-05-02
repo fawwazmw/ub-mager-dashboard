@@ -2,6 +2,9 @@ import { Sidebar } from "@/components/ui/Sidebar";
 import { AuthGuard } from "@/components/ui/AuthGuard";
 import { ToastProvider } from "@/components/ui/Toast";
 import { Header } from "@/components/ui/Header";
+import { CommandPalette } from "@/components/ui/CommandPalette";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { SessionTimeout } from "@/components/ui/SessionTimeout";
 
 export default function DashboardLayout({
   children,
@@ -11,6 +14,8 @@ export default function DashboardLayout({
   return (
     <AuthGuard>
       <ToastProvider>
+        <CommandPalette />
+        <SessionTimeout />
         <div className="flex min-h-screen">
           <Sidebar />
           <div className="flex-1 lg:ml-64">
@@ -19,7 +24,10 @@ export default function DashboardLayout({
               <Header />
             </div>
             {/* Content */}
-            <main className="p-4 lg:p-8">{children}</main>
+            <main className="p-4 lg:p-8">
+              <Breadcrumbs />
+              {children}
+            </main>
           </div>
         </div>
       </ToastProvider>

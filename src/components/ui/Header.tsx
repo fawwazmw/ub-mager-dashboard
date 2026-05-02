@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sun, Moon, Bell, Keyboard } from "lucide-react";
+import { Sun, Moon, Bell, Search } from "lucide-react";
 import { useThemeStore } from "@/stores/themeStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { api } from "@/lib/api";
@@ -17,7 +17,6 @@ interface Activity {
 export function Header() {
   const { theme, toggleTheme } = useThemeStore();
   const [showNotifs, setShowNotifs] = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   useKeyboardShortcuts();
 
@@ -47,13 +46,17 @@ export function Header() {
 
   return (
     <div className="flex items-center gap-2">
-      {/* Keyboard shortcuts */}
+      {/* Command palette hint */}
       <button
-        onClick={() => setShowShortcuts(!showShortcuts)}
-        className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors hidden lg:block"
-        title="Keyboard shortcuts"
+        onClick={() => {
+          // Trigger ⌘K programmatically
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+        }}
+        className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors text-xs"
       >
-        <Keyboard size={16} />
+        <Search size={14} />
+        <span>Search...</span>
+        <kbd className="text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border font-mono ml-2">⌘K</kbd>
       </button>
 
       {/* Theme toggle */}
@@ -111,36 +114,7 @@ export function Header() {
         )}
       </div>
 
-      {/* Keyboard shortcuts modal */}
-      {showShortcuts && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/40" onClick={() => setShowShortcuts(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-card border border-border rounded-xl p-6 w-80 shadow-xl">
-            <h3 className="text-sm font-medium mb-4">Keyboard Shortcuts</h3>
-            <div className="space-y-2">
-              {[
-                ["⌘ 1", "Dashboard"],
-                ["⌘ 2", "Live Tracking"],
-                ["⌘ 3", "Drivers"],
-                ["⌘ 4", "Rides"],
-                ["⌘ 5", "Analytics"],
-                ["⌘ K", "Focus Search"],
-              ].map(([key, label]) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{label}</span>
-                  <kbd className="text-[10px] bg-muted px-2 py-0.5 rounded border border-border font-mono">{key}</kbd>
-                </div>
-              ))}
-            </div>
-            <button
-              onClick={() => setShowShortcuts(false)}
-              className="w-full mt-4 text-xs text-muted-foreground hover:text-foreground text-center"
-            >
-              Press Esc to close
-            </button>
-          </div>
-        </>
-      )}
+
     </div>
   );
 }

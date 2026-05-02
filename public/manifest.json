@@ -1,0 +1,16 @@
+{
+  "name": "UB-Mager Admin",
+  "short_name": "UB-Mager",
+  "description": "Admin dashboard for UB-Mager ride-hailing platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141B2D",
+  "theme_color": "#D4A843",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

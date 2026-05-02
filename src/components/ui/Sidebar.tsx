@@ -54,11 +54,14 @@ export function Sidebar() {
     <>
       {/* Logo */}
       <div className="p-6 border-b border-border flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold tracking-tight">
-            <span className="text-primary">UB</span>-Mager
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">Operations Center</p>
+        <div className="flex items-center gap-3">
+          <img src="/ubmagerlogo.png" alt="UB-Mager" className="w-8 h-8 rounded" />
+          <div>
+            <h1 className="text-sm font-bold tracking-tight">
+              <span className="text-primary">UB</span>-Mager
+            </h1>
+            <p className="text-[10px] text-muted-foreground">Operations Center</p>
+          </div>
         </div>
         {/* Mobile close button */}
         <button

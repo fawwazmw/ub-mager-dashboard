@@ -4,31 +4,31 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 98%;
-    --card-foreground: 222 47% 11%;
-    --primary: 142 76% 36%;
-    --primary-foreground: 0 0% 100%;
+    --background: 220 20% 97%;
+    --foreground: 225 40% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 225 40% 12%;
+    --primary: 42 65% 55%;
+    --primary-foreground: 225 40% 12%;
     --muted: 220 14% 92%;
     --muted-foreground: 220 9% 46%;
     --border: 220 13% 87%;
-    --accent: 142 76% 36%;
+    --accent: 42 65% 55%;
     --destructive: 0 84% 60%;
     --warning: 38 92% 50%;
   }
 
   .dark {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-    --primary: 142 76% 36%;
-    --primary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --border: 217 33% 17%;
-    --accent: 142 76% 36%;
+    --background: 225 40% 8%;
+    --foreground: 40 20% 90%;
+    --card: 225 35% 11%;
+    --card-foreground: 40 20% 90%;
+    --primary: 42 65% 55%;
+    --primary-foreground: 225 40% 8%;
+    --muted: 225 28% 16%;
+    --muted-foreground: 225 15% 50%;
+    --border: 225 28% 16%;
+    --accent: 42 65% 55%;
     --destructive: 0 84% 60%;
     --warning: 38 92% 50%;
   }
@@ -43,4 +43,45 @@
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* Page transition animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-page-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-card-in {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Staggered card animations */
+.stagger-1 { animation-delay: 0.05s; animation-fill-mode: backwards; }
+.stagger-2 { animation-delay: 0.1s; animation-fill-mode: backwards; }
+.stagger-3 { animation-delay: 0.15s; animation-fill-mode: backwards; }
+.stagger-4 { animation-delay: 0.2s; animation-fill-mode: backwards; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
 }

@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { Search, Download } from "lucide-react";
+import { CopyButton } from "@/components/ui/CopyButton";
+import { TimeAgo } from "@/components/ui/TimeAgo";
 import { clsx } from "clsx";
 
 interface Ride {
@@ -15,6 +17,8 @@ interface Ride {
   vehicle_type: string;
   pickup_address: string;
   dropoff_address: string;
+  estimated_distance_m: number;
+  estimated_duration_s: number;
   total_fare: number;
   requested_at: string;
   completed_at: string | null;
@@ -26,7 +30,7 @@ const statusColors: Record<string, string> = {
   DRIVER_EN_ROUTE: "text-blue-400 bg-blue-400/10",
   ARRIVED_AT_PICKUP: "text-purple-400 bg-purple-400/10",
   IN_PROGRESS: "text-primary bg-primary/10",
-  COMPLETED: "text-green-400 bg-green-400/10",
+  COMPLETED: "text-amber-400 bg-amber-400/10",
   CANCELLED: "text-destructive bg-destructive/10",
 };
 
@@ -41,7 +45,20 @@ export default function RidesPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const router = useRouter();
+
+  useEffect(() => {
+    async function fetchCounts() {
+      const res = await api.getRideCountsByStatus();
+      if (res.success && res.data) {
+        const map: Record<string, number> = {};
+        res.data.forEach((item: any) => { map[item.status] = item.count; });
+        setStatusCounts(map);
+      }
+    }
+    fetchCounts();
+  }, []);
 
   const fetchRides = useCallback(async () => {
     setLoading(true);
@@ -124,20 +141,26 @@ export default function RidesPage() {
 
           {/* Status filter */}
           <div className="flex gap-1.5 flex-wrap">
-            {statusOptions.map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={clsx(
-                  "px-2.5 py-1.5 text-xs rounded-lg border transition-colors",
-                  statusFilter === s
-                    ? "bg-primary/10 border-primary/20 text-primary"
-                    : "border-border text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {s || "All"}
-              </button>
-            ))}
+            {statusOptions.map((s) => {
+              const count = s ? statusCounts[s] || 0 : Object.values(statusCounts).reduce((a, b) => a + b, 0);
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={clsx(
+                    "px-2.5 py-1.5 text-xs rounded-lg border transition-colors flex items-center gap-1.5",
+                    statusFilter === s
+                      ? "bg-primary/10 border-primary/20 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {s || "All"}
+                  {count > 0 && (
+                    <span className="text-[10px] tabular-nums opacity-60">{count}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -146,6 +169,7 @@ export default function RidesPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
+              <th className="text-left px-4 py-3 w-8">#</th>
               <th className="text-left px-4 py-3">Route</th>
               <th className="text-left px-4 py-3">Passenger</th>
               <th className="text-left px-4 py-3">Driver</th>
@@ -158,17 +182,30 @@ export default function RidesPage() {
             {loading ? (
               [...Array(5)].map((_, i) => (
                 <tr key={i} className="border-b border-border">
-                  <td colSpan={6} className="px-4 py-4"><div className="h-4 bg-muted rounded animate-pulse" /></td>
+                  <td colSpan={7} className="px-4 py-4"><div className="h-4 bg-muted rounded animate-pulse" /></td>
                 </tr>
               ))
             ) : rides.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No rides found</td></tr>
+              <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No rides found</td></tr>
             ) : (
               rides.map((ride) => (
                 <tr key={ride.id} onClick={() => router.push(`/rides/${ride.id}`)} className="border-b border-border hover:bg-muted/30 transition-colors cursor-pointer">
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <CopyButton text={ride.id} />
+                  </td>
                   <td className="px-4 py-3">
                     <p className="font-medium truncate max-w-[180px]">{ride.pickup_address}</p>
                     <p className="text-xs text-muted-foreground truncate max-w-[180px]">→ {ride.dropoff_address}</p>
+                    {ride.estimated_distance_m > 0 && (
+                      <div className="flex gap-2 mt-1">
+                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded tabular-nums">
+                          {(ride.estimated_distance_m / 1000).toFixed(1)} km
+                        </span>
+                        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded tabular-nums">
+                          {Math.round(ride.estimated_duration_s / 60)} min
+                        </span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-sm">{ride.passenger_name}</p>
@@ -190,7 +227,7 @@ export default function RidesPage() {
                     Rp {ride.total_fare.toLocaleString("id-ID")}
                   </td>
                   <td className="px-4 py-3 text-right text-muted-foreground text-xs">
-                    {new Date(ride.requested_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    <TimeAgo date={ride.requested_at} />
                   </td>
                 </tr>
               ))
