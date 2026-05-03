@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 
 // Green marker for online drivers
 const onlineIcon = new L.Icon({
-  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -48,9 +48,10 @@ interface DriverLocation {
 
 interface LiveMapProps {
   wsDriverLocations?: Map<string, DriverLocation>;
+  filter?: "all" | "online" | "offline";
 }
 
-export default function LiveMap({ wsDriverLocations }: LiveMapProps) {
+export default function LiveMap({ wsDriverLocations, filter = "all" }: LiveMapProps) {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [onlineCount, setOnlineCount] = useState(0);
 
@@ -63,7 +64,7 @@ export default function LiveMap({ wsDriverLocations }: LiveMapProps) {
       }
     }
     fetchDrivers();
-    const interval = setInterval(fetchDrivers, 15000);
+    const interval = setInterval(fetchDrivers, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -86,15 +87,21 @@ export default function LiveMap({ wsDriverLocations }: LiveMapProps) {
   return (
     <div className="relative">
       {/* Stats overlay */}
-      <div className="absolute top-3 left-3 z-[1000] bg-card/90 backdrop-blur border border-border rounded-lg px-3 py-2 flex items-center gap-4">
+      <div className="absolute top-3 left-3 z-[1000] bg-card/90 backdrop-blur border border-border rounded-lg px-4 py-2.5 flex items-center gap-5">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-xs font-medium">{onlineCount} online</span>
+          <div className="relative w-2 h-2">
+            <div className="w-2 h-2 rounded-full bg-primary" />
+            <div className="absolute inset-0 w-2 h-2 rounded-full bg-primary animate-ping" />
+          </div>
+          <span className="text-xs font-medium tabular-nums">{onlineCount} online</span>
         </div>
+        <div className="w-px h-3 bg-border" />
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-gray-400" />
-          <span className="text-xs text-muted-foreground">{drivers.length - onlineCount} offline</span>
+          <div className="w-2 h-2 rounded-full bg-muted-foreground/40" />
+          <span className="text-xs text-muted-foreground tabular-nums">{drivers.length - onlineCount} offline</span>
         </div>
+        <div className="w-px h-3 bg-border" />
+        <span className="text-xs text-muted-foreground tabular-nums">{drivers.length} total</span>
       </div>
 
       <div className="h-[calc(100vh-12rem)] rounded-xl overflow-hidden border border-border">
@@ -117,7 +124,7 @@ export default function LiveMap({ wsDriverLocations }: LiveMapProps) {
           />
 
           {/* Driver markers */}
-          {drivers.map((driver) => {
+          {drivers.filter((d) => filter === "all" || (filter === "online" ? d.is_online : !d.is_online)).map((driver) => {
             const position = getDriverPosition(driver);
             const icon = driver.is_online ? onlineIcon : offlineIcon;
 
@@ -126,7 +133,7 @@ export default function LiveMap({ wsDriverLocations }: LiveMapProps) {
                 <Popup>
                   <div className="text-sm min-w-[160px]">
                     <div className="flex items-center gap-2 mb-1">
-                      <div className={`w-2 h-2 rounded-full ${driver.is_online ? "bg-green-500" : "bg-gray-400"}`} />
+                      <div className={`w-2 h-2 rounded-full ${driver.is_online ? "bg-amber-500" : "bg-gray-400"}`} />
                       <p className="font-bold">{driver.full_name}</p>
                     </div>
                     <p className="text-gray-600">{driver.vehicle_type} • {driver.license_plate}</p>

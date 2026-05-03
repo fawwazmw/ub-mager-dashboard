@@ -5,7 +5,7 @@ import { useState, useRef } from "react";
 interface TooltipProps {
   content: React.ReactNode;
   children: React.ReactNode;
-  position?: "top" | "bottom";
+  position?: "top" | "bottom" | "right";
 }
 
 export function Tooltip({ content, children, position = "top" }: TooltipProps) {
@@ -26,8 +26,10 @@ export function Tooltip({ content, children, position = "top" }: TooltipProps) {
       {children}
       {show && (
         <span
-          className={`absolute z-50 px-2.5 py-1.5 text-[11px] bg-card border border-border rounded-lg shadow-lg whitespace-nowrap left-1/2 -translate-x-1/2 ${
-            position === "top" ? "bottom-full mb-2" : "top-full mt-2"
+          className={`absolute z-50 px-2.5 py-1.5 text-[11px] bg-card border border-border rounded-lg shadow-lg whitespace-nowrap ${
+            position === "top" ? "bottom-full mb-2 left-1/2 -translate-x-1/2" :
+            position === "right" ? "left-full ml-2 top-1/2 -translate-y-1/2" :
+            "top-full mt-2 left-1/2 -translate-x-1/2"
           }`}
         >
           {content}

@@ -3,8 +3,9 @@
 import dynamic from "next/dynamic";
 import { useState, useCallback, useEffect } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { api } from "@/lib/api";
-import { Wifi, WifiOff, Radio, Users, Car, Activity } from "lucide-react";
+import { Wifi, WifiOff, Radio, Users, Car, Activity, ChevronRight, ChevronLeft } from "lucide-react";
 import { clsx } from "clsx";
 
 const LiveMap = dynamic(() => import("@/components/map/LiveMap"), {
@@ -28,9 +29,14 @@ interface DriverLocation {
 }
 
 export default function LiveTrackingPage() {
+  usePageTitle("Live Tracking");
   const [driverLocations, setDriverLocations] = useState<Map<string, DriverLocation>>(new Map());
   const [messageCount, setMessageCount] = useState(0);
   const [liveStats, setLiveStats] = useState({ online: 0, total: 0, active_rides: 0 });
+  const [mapFilter, setMapFilter] = useState<"all" | "online" | "offline">("all");
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [showDriverList, setShowDriverList] = useState(false);
+  const [driverList, setDriverList] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchStats() {
@@ -41,6 +47,11 @@ export default function LiveTrackingPage() {
           total: res.data.total_drivers,
           active_rides: res.data.active_rides,
         });
+        setLastSync(new Date());
+      }
+      const driversRes = await api.getDrivers(1, 50, "");
+      if (driversRes.success && driversRes.data) {
+        setDriverList(driversRes.data);
       }
     }
     fetchStats();
@@ -78,13 +89,17 @@ export default function LiveTrackingPage() {
           <h1 className="text-2xl font-bold">Live Tracking</h1>
           <p className="text-muted-foreground text-sm mt-1">Real-time driver positions</p>
         </div>
-        <div className="flex items-center gap-4">
-          {/* WS Messages counter */}
-          <div className="text-xs text-muted-foreground tabular-nums">
-            {messageCount > 0 && `${messageCount} updates`}
-          </div>
-
-          {/* Connection status */}
+        <div className="flex items-center gap-3">
+          {lastSync && (
+            <span className="text-[10px] text-muted-foreground tabular-nums hidden sm:inline">
+              Synced {lastSync.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
+          )}
+          {messageCount > 0 && (
+            <span className="text-[10px] text-muted-foreground tabular-nums bg-muted px-2 py-0.5 rounded">
+              {messageCount} ws
+            </span>
+          )}
           <div className={clsx("flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border border-border", statusColor)}>
             <StatusIcon size={14} className={status === "connected" ? "animate-pulse" : ""} />
             {statusLabel}
@@ -117,7 +132,64 @@ export default function LiveTrackingPage() {
         </div>
       </div>
 
-      <LiveMap wsDriverLocations={driverLocations} />
+      <div className="flex gap-1.5 mb-3">
+        {(["all", "online", "offline"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setMapFilter(f)}
+            className={clsx(
+              "px-2.5 py-1.5 text-xs rounded-lg border transition-colors capitalize",
+              mapFilter === f
+                ? "bg-primary/10 border-primary/20 text-primary"
+                : "border-border text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-3">
+        <div className="flex-1 relative">
+          <LiveMap wsDriverLocations={driverLocations} filter={mapFilter} />
+          <button
+            onClick={() => setShowDriverList(!showDriverList)}
+            className="absolute top-3 right-3 z-[1000] bg-card/90 backdrop-blur border border-border rounded-lg p-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {showDriverList ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        </div>
+
+        {showDriverList && (
+          <div className="w-72 bg-card border border-border rounded-xl overflow-hidden shrink-0 h-[calc(100vh-12rem)]">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <span className="text-xs font-medium">Drivers ({driverList.length})</span>
+              <span className="text-[10px] text-muted-foreground">{driverList.filter((d: any) => d.is_online).length} online</span>
+            </div>
+            <div className="overflow-y-auto h-[calc(100%-40px)]">
+              {driverList
+                .filter((d: any) => mapFilter === "all" || (mapFilter === "online" ? d.is_online : !d.is_online))
+                .map((driver: any) => (
+                <div key={driver.id} className="px-4 py-2.5 border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <div className={clsx("w-2 h-2 rounded-full shrink-0", driver.is_online ? "bg-green-400" : "bg-muted-foreground/40")} />
+                    <span className="text-xs font-medium truncate">{driver.full_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 ml-4">
+                    <span className="text-[10px] text-muted-foreground">{driver.vehicle_type}</span>
+                    <span className="text-[10px] text-muted-foreground">•</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">{driver.license_plate}</span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 ml-4">
+                    <span className="text-[10px] text-muted-foreground">⭐ {driver.rating.toFixed(1)}</span>
+                    <span className="text-[10px] text-muted-foreground">{driver.total_trips} trips</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

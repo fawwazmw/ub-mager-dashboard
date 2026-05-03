@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useThemeStore } from "@/stores/themeStore";
-import { CheckCircle, XCircle, RefreshCw, Sun, Moon } from "lucide-react";
+import { CheckCircle, XCircle, RefreshCw, Sun, Moon, Trash2, AlertTriangle } from "lucide-react";
 import { clsx } from "clsx";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 
 interface HealthCheck {
   name: string;
@@ -14,12 +17,16 @@ interface HealthCheck {
 }
 
 export default function SettingsPage() {
+  usePageTitle("Settings");
   const { user } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const [services, setServices] = useState<HealthCheck[]>([
     { name: "API Server", url: "/health", status: "checking" },
   ]);
   const [checking, setChecking] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [apiInfo, setApiInfo] = useState<{ version?: string; time?: string; status?: string } | null>(null);
+  const { toast } = useToast();
 
   async function checkHealth() {
     setChecking(true);
@@ -47,6 +54,15 @@ export default function SettingsPage() {
 
     setServices(results);
     setChecking(false);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") || "http://localhost:8081";
+      const infoRes = await fetch(`${apiUrl}/health`, { cache: "no-store" });
+      if (infoRes.ok) {
+        const data = await infoRes.json();
+        setApiInfo({ version: data.version, time: data.time, status: data.status });
+      }
+    } catch {}
   }
 
   useEffect(() => {
@@ -68,6 +84,22 @@ export default function SettingsPage() {
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Name</span>
               <span>{user?.full_name}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Session</span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {(() => {
+                  const token = localStorage.getItem("access_token");
+                  if (!token) return "No session";
+                  try {
+                    const payload = JSON.parse(atob(token.split(".")[1]));
+                    const exp = new Date(payload.exp * 1000);
+                    const now = new Date();
+                    const diffMin = Math.max(0, Math.round((exp.getTime() - now.getTime()) / 60000));
+                    return diffMin > 0 ? `Expires in ${diffMin}m` : "Expired";
+                  } catch { return "Active"; }
+                })()}
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Phone</span>
@@ -170,6 +202,22 @@ export default function SettingsPage() {
                 {process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8081/ws"}
               </code>
             </div>
+            {apiInfo && (
+              <div className="pt-3 mt-3 border-t border-border space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">API Version</span>
+                  <span className="font-mono">{apiInfo.version || "unknown"}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Server Time</span>
+                  <span className="font-mono tabular-nums">{apiInfo.time ? new Date(apiInfo.time).toLocaleString("id-ID") : "—"}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Status</span>
+                  <span className={clsx("font-medium", apiInfo.status === "healthy" ? "text-green-400" : "text-warning")}>{apiInfo.status}</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -192,7 +240,53 @@ export default function SettingsPage() {
             ))}
           </div>
         </div>
+
+        {/* Danger Zone */}
+        <div className="bg-card border border-destructive/20 rounded-xl p-6 lg:col-span-2">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle size={16} className="text-destructive" />
+            <h2 className="text-sm font-medium text-destructive">Danger Zone</h2>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => {
+                localStorage.removeItem("sidebar_collapsed");
+                localStorage.removeItem("theme");
+                toast("success", "Preferences reset. Reloading...");
+                setTimeout(() => window.location.reload(), 800);
+              }}
+              className="flex items-center gap-2 text-xs border border-border text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg transition-colors"
+            >
+              <RefreshCw size={12} />
+              Reset Preferences
+            </button>
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="flex items-center gap-2 text-xs border border-destructive/20 text-destructive hover:bg-destructive/10 px-3 py-2 rounded-lg transition-colors"
+            >
+              <Trash2 size={12} />
+              Clear All Local Data
+            </button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-3">
+            Clearing local data will log you out and remove all cached preferences.
+          </p>
+        </div>
       </div>
+
+      <ConfirmDialog
+        open={showResetConfirm}
+        title="Clear all local data?"
+        description="This will remove your access token, theme preference, sidebar state, and all cached data. You will be logged out immediately."
+        confirmLabel="Clear & Logout"
+        variant="destructive"
+        onCancel={() => setShowResetConfirm(false)}
+        onConfirm={() => {
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.href = "/login";
+        }}
+      />
     </div>
   );
 }

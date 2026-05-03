@@ -1,22 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
-import { LogIn } from "lucide-react";
+import { LogIn, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
-  const [phone, setPhone] = useState("+6280000000000");
-  const [password, setPassword] = useState("Password123!");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuthStore();
   const router = useRouter();
 
+  useEffect(() => {
+    document.title = "Sign In | UB-Mager";
+    const saved = localStorage.getItem("remembered_phone");
+    if (saved) {
+      setPhone(saved);
+      setRemember(true);
+    }
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    if (remember) {
+      localStorage.setItem("remembered_phone", phone);
+    } else {
+      localStorage.removeItem("remembered_phone");
+    }
 
     const result = await login(phone, password);
     if (result.success) {
@@ -29,16 +46,16 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
+      <div className="w-full max-w-sm px-4">
+        <div className="text-center mb-8 animate-page-in">
           <img src="/ubmagerlogo.png" alt="UB-Mager" className="w-16 h-16 rounded-xl mx-auto mb-3" />
           <h1 className="text-2xl font-bold">
             <span className="text-primary">UB</span>-Mager
           </h1>
-          <p className="text-sm text-muted-foreground mt-2">Admin Dashboard</p>
+          <p className="text-sm text-muted-foreground mt-2">Operations Center</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-6 space-y-4 animate-card-in">
           {error && (
             <div className="bg-destructive/10 border border-destructive/20 text-destructive text-sm px-4 py-3 rounded-lg">
               {error}
@@ -51,25 +68,48 @@ export default function LoginPage() {
               type="text"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              autoComplete="tel"
+              autoFocus
               className="w-full bg-muted border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors"
-              placeholder="+62..."
+              placeholder="+628..."
             />
           </div>
 
           <div>
             <label className="block text-xs text-muted-foreground mb-1.5 uppercase tracking-wider">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-muted border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary transition-colors"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                className="w-full bg-muted border border-border rounded-lg px-4 py-2.5 pr-10 text-sm focus:outline-none focus:border-primary transition-colors"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="rounded border-border w-3.5 h-3.5 accent-primary"
+            />
+            <span className="text-xs text-muted-foreground">Remember phone number</span>
+          </label>
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !phone || !password}
             className="w-full bg-primary text-primary-foreground rounded-lg px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {loading ? (
@@ -83,8 +123,8 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          Use seeded admin credentials
+        <p className="text-center text-[10px] text-muted-foreground mt-6">
+          UB-Mager Operations Center v1.0
         </p>
       </div>
     </div>

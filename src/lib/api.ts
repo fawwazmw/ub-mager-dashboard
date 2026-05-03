@@ -117,6 +117,22 @@ class ApiClient {
     return this.request<any[]>(`/analytics/drivers/leaderboard?limit=${limit}`);
   }
 
+  async getRecentActivity(limit = 20) {
+    return this.request<any[]>(`/admin/activity?limit=${limit}`);
+  }
+
+  async getDriverRides(driverId: string, limit = 5) {
+    return this.request<any[]>(`/admin/drivers/${driverId}/rides?limit=${limit}`);
+  }
+
+  async getPeakHours(days = 7) {
+    return this.request<any[]>(`/analytics/peak-hours?days=${days}`);
+  }
+
+  async bulkCancelStuckRides() {
+    return this.request<{ cancelled: number; message: string }>("/admin/rides/bulk-cancel", { method: "PUT" });
+  }
+
   // Rides (user-scoped)
   async getRideHistory(page = 1, perPage = 20) {
     return this.request<any[]>(`/rides/history?page=${page}&per_page=${perPage}`);

@@ -1,19 +1,22 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, MapPin, Car, Route, BarChart3, Settings, Trophy,
-  Search, LogOut,
+  Search, LogOut, User, Hash,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { api } from "@/lib/api";
 
 interface Command {
   id: string;
   label: string;
+  sublabel?: string;
   icon: any;
   action: () => void;
   keywords?: string;
+  group?: string;
 }
 
 export function CommandPalette() {
@@ -24,22 +27,70 @@ export function CommandPalette() {
   const router = useRouter();
   const { logout } = useAuthStore();
 
-  const commands: Command[] = [
-    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, action: () => router.push("/"), keywords: "home overview stats" },
-    { id: "live", label: "Live Tracking", icon: MapPin, action: () => router.push("/live-tracking"), keywords: "map drivers gps" },
-    { id: "drivers", label: "Drivers", icon: Car, action: () => router.push("/drivers"), keywords: "manage verify" },
-    { id: "rides", label: "Rides", icon: Route, action: () => router.push("/rides"), keywords: "trips history" },
-    { id: "analytics", label: "Analytics", icon: BarChart3, action: () => router.push("/analytics/revenue"), keywords: "revenue chart" },
-    { id: "leaderboard", label: "Driver Leaderboard", icon: Trophy, action: () => router.push("/analytics/drivers"), keywords: "top performance" },
-    { id: "settings", label: "Settings", icon: Settings, action: () => router.push("/settings"), keywords: "config theme" },
-    { id: "logout", label: "Sign Out", icon: LogOut, action: () => { logout(); router.push("/login"); }, keywords: "exit" },
+  const [dynamicResults, setDynamicResults] = useState<Command[]>([]);
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  const pageCommands: Command[] = [
+    { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, action: () => router.push("/"), keywords: "home overview stats", group: "Pages" },
+    { id: "live", label: "Live Tracking", icon: MapPin, action: () => router.push("/live-tracking"), keywords: "map drivers gps", group: "Pages" },
+    { id: "drivers", label: "Drivers", icon: Car, action: () => router.push("/drivers"), keywords: "manage verify", group: "Pages" },
+    { id: "rides", label: "Rides", icon: Route, action: () => router.push("/rides"), keywords: "trips history", group: "Pages" },
+    { id: "analytics", label: "Analytics", icon: BarChart3, action: () => router.push("/analytics/revenue"), keywords: "revenue chart", group: "Pages" },
+    { id: "leaderboard", label: "Driver Leaderboard", icon: Trophy, action: () => router.push("/analytics/drivers"), keywords: "top performance", group: "Pages" },
+    { id: "settings", label: "Settings", icon: Settings, action: () => router.push("/settings"), keywords: "config theme", group: "Pages" },
+    { id: "logout", label: "Sign Out", icon: LogOut, action: () => { logout(); router.push("/login"); }, keywords: "exit", group: "Actions" },
   ];
 
+  const searchEntities = useCallback(async (q: string) => {
+    if (q.length < 2) { setDynamicResults([]); return; }
+    const [ridesRes, driversRes] = await Promise.all([
+      api.getAdminRides(1, 5, "", q),
+      api.getDrivers(1, 5, "", q),
+    ]);
+    const results: Command[] = [];
+    if (ridesRes.success && ridesRes.data) {
+      ridesRes.data.forEach((r: any) => {
+        results.push({
+          id: `ride-${r.id}`,
+          label: `${r.passenger_name}`,
+          sublabel: `${r.pickup_address} → ${r.dropoff_address}`,
+          icon: Route,
+          action: () => router.push(`/rides/${r.id}`),
+          group: "Rides",
+        });
+      });
+    }
+    if (driversRes.success && driversRes.data) {
+      driversRes.data.forEach((d: any) => {
+        results.push({
+          id: `driver-${d.id}`,
+          label: d.full_name,
+          sublabel: `${d.vehicle_type} • ${d.license_plate}`,
+          icon: User,
+          action: () => router.push("/drivers"),
+          group: "Drivers",
+        });
+      });
+    }
+    setDynamicResults(results);
+  }, [router]);
+
+  useEffect(() => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (query.length >= 2) {
+      searchTimeout.current = setTimeout(() => searchEntities(query), 300);
+    } else {
+      setDynamicResults([]);
+    }
+    return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current); };
+  }, [query, searchEntities]);
+
+  const allCommands = [...pageCommands, ...dynamicResults];
   const filtered = query
-    ? commands.filter((cmd) =>
-        `${cmd.label} ${cmd.keywords || ""}`.toLowerCase().includes(query.toLowerCase())
+    ? allCommands.filter((cmd) =>
+        `${cmd.label} ${cmd.sublabel || ""} ${cmd.keywords || ""}`.toLowerCase().includes(query.toLowerCase())
       )
-    : commands;
+    : pageCommands;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -112,21 +163,36 @@ export function CommandPalette() {
             {filtered.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">No results found</p>
             ) : (
-              filtered.map((cmd, i) => (
-                <button
-                  key={cmd.id}
-                  onClick={() => { cmd.action(); setOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                    i === selectedIndex ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted/50"
-                  }`}
-                >
-                  <cmd.icon size={16} className={i === selectedIndex ? "text-primary" : "text-muted-foreground"} />
-                  <span className="flex-1 text-left">{cmd.label}</span>
-                  {i === selectedIndex && (
-                    <span className="text-[10px] text-muted-foreground">↵</span>
-                  )}
-                </button>
-              ))
+              filtered.map((cmd, i) => {
+                const prevGroup = i > 0 ? filtered[i - 1].group : null;
+                const showGroup = cmd.group && cmd.group !== prevGroup;
+                return (
+                  <div key={cmd.id}>
+                    {showGroup && (
+                      <div className="px-4 pt-3 pb-1">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{cmd.group}</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { cmd.action(); setOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                        i === selectedIndex ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <cmd.icon size={16} className={i === selectedIndex ? "text-primary" : "text-muted-foreground"} />
+                      <div className="flex-1 text-left min-w-0">
+                        <span className="block truncate">{cmd.label}</span>
+                        {cmd.sublabel && (
+                          <span className="block text-[10px] text-muted-foreground truncate">{cmd.sublabel}</span>
+                        )}
+                      </div>
+                      {i === selectedIndex && (
+                        <span className="text-[10px] text-muted-foreground shrink-0">↵</span>
+                      )}
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
 

@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/components/ui/Toast";
-import { CheckCircle, Circle, X, Car, Star, MapPin } from "lucide-react";
+import { CheckCircle, Circle, X, Car, Star, MapPin, Search, Download, Route } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { clsx } from "clsx";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { TimeAgo } from "@/components/ui/TimeAgo";
 
 interface Driver {
   id: string;
@@ -21,12 +26,31 @@ interface Driver {
 }
 
 export default function DriversPage() {
+  usePageTitle("Drivers");
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showToggleConfirm, setShowToggleConfirm] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const [driverRides, setDriverRides] = useState<any[]>([]);
+  const [ridesLoading, setRidesLoading] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!selectedDriver) { setDriverRides([]); return; }
+    async function fetchDriverRides() {
+      setRidesLoading(true);
+      const res = await api.getDriverRides(selectedDriver!.id, 5);
+      if (res.success && res.data) setDriverRides(res.data);
+      setRidesLoading(false);
+    }
+    fetchDriverRides();
+  }, [selectedDriver]);
 
   const pendingDrivers = drivers.filter(d => !d.is_verified);
   const hasSelection = selected.size > 0;
@@ -60,14 +84,36 @@ export default function DriversPage() {
     fetchDrivers();
   }
 
-  async function fetchDrivers() {
+  const fetchDrivers = useCallback(async () => {
     setLoading(true);
-    const res = await api.getDrivers(1, 50, filter);
+    const res = await api.getDrivers(1, 50, filter, search);
     if (res.success && res.data) setDrivers(res.data);
     setLoading(false);
+  }, [filter, search]);
+
+  useEffect(() => { fetchDrivers(); }, [fetchDrivers]);
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setSearch(searchInput);
   }
 
-  useEffect(() => { fetchDrivers(); }, [filter]);
+  function exportDriversCSV() {
+    if (drivers.length === 0) return;
+    const headers = ["Name", "Phone", "Vehicle", "Plate", "Online", "Verified", "Rating", "Trips"];
+    const rows = drivers.map((d) => [
+      d.full_name, d.phone, d.vehicle_type, d.license_plate,
+      d.is_online, d.is_verified, d.rating, d.total_trips,
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `drivers-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function handleVerify(driverId: string) {
     const res = await api.verifyDriver(driverId);
@@ -82,26 +128,48 @@ export default function DriversPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold">Drivers</h1>
           <p className="text-muted-foreground text-sm mt-1">{drivers.length} drivers registered</p>
         </div>
-        <div className="flex gap-2">
-          {["", "online", "verified", "pending"].map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={clsx(
-                "px-3 py-1.5 text-xs rounded-lg border transition-colors",
-                filter === f
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <button
+            onClick={exportDriversCSV}
+            disabled={drivers.length === 0}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-30"
+          >
+            <Download size={12} />
+            CSV
+          </button>
+
+          <form onSubmit={handleSearch} className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search name, phone, plate..."
+              className="bg-muted border border-border rounded-lg pl-9 pr-3 py-1.5 text-xs w-52 focus:outline-none focus:border-primary transition-colors"
+            />
+          </form>
+
+          <div className="flex gap-1.5 flex-wrap">
+            {["", "online", "verified", "pending"].map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={clsx(
+                  "px-2.5 py-1.5 text-xs rounded-lg border transition-colors",
+                  filter === f
                   ? "bg-primary/10 border-primary/20 text-primary"
                   : "border-border text-muted-foreground hover:text-foreground"
               )}
             >
               {f || "All"}
             </button>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
@@ -121,7 +189,8 @@ export default function DriversPage() {
       )}
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[700px]">
           <thead>
             <tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
               <th className="w-10 px-4 py-3">
@@ -147,11 +216,25 @@ export default function DriversPage() {
             {loading ? (
               [...Array(5)].map((_, i) => (
                 <tr key={i} className="border-b border-border">
-                  <td colSpan={8} className="px-4 py-4"><div className="h-4 bg-muted rounded animate-pulse" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-4" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-28 mb-1" /><div className="skeleton h-3 w-20" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-16" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-20" /></td>
+                  <td className="px-4 py-4 text-center"><div className="skeleton h-5 w-14 mx-auto" /></td>
+                  <td className="px-4 py-4 text-center"><div className="skeleton h-4 w-8 mx-auto" /></td>
+                  <td className="px-4 py-4 text-center"><div className="skeleton h-4 w-6 mx-auto" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-12 ml-auto" /></td>
                 </tr>
               ))
             ) : drivers.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No drivers found</td></tr>
+              <tr><td colSpan={8}>
+                <EmptyState
+                  icon={<Car size={28} />}
+                  title="No drivers found"
+                  description={search ? `No drivers matching "${search}"` : "No drivers match the current filter."}
+                  action={search ? { label: "Clear search", onClick: () => { setSearch(""); setSearchInput(""); } } : undefined}
+                />
+              </td></tr>
             ) : (
               drivers.map((driver) => (
                 <tr
@@ -201,13 +284,14 @@ export default function DriversPage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Driver Detail Modal */}
       {selectedDriver && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedDriver(null)} />
-          <div className="relative bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl">
+          <div className="relative bg-card border border-border rounded-xl p-6 w-full max-w-lg shadow-2xl animate-dialog">
             {/* Close button */}
             <button
               onClick={() => setSelectedDriver(null)}
@@ -268,9 +352,50 @@ export default function DriversPage() {
               <div className="text-xs text-muted-foreground pt-2 border-t border-border">
                 Registered: {new Date(selectedDriver.created_at).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}
               </div>
-            </div>
 
-            {/* Actions */}
+              <div className="pt-3 border-t border-border">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <Route size={12} className="text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground uppercase tracking-wider">Recent Rides</span>
+                  </div>
+                  {driverRides.length > 0 && (
+                    <span className="text-[10px] text-muted-foreground tabular-nums">{driverRides.length} shown</span>
+                  )}
+                </div>
+                {ridesLoading ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="skeleton h-10 w-full rounded-lg" />
+                    ))}
+                  </div>
+                ) : driverRides.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-3">No rides yet</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {driverRides.map((ride) => (
+                      <div
+                        key={ride.id}
+                        onClick={() => { setSelectedDriver(null); router.push(`/rides/${ride.id}`); }}
+                        className="flex items-center justify-between bg-muted/30 rounded-lg px-3 py-2 cursor-pointer hover:bg-muted/60 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs truncate">{ride.pickup_address} → {ride.dropoff_address}</p>
+                          <p className="text-[10px] text-muted-foreground">{ride.passenger_name} • <TimeAgo date={ride.requested_at} /></p>
+                        </div>
+                        <div className="text-right shrink-0 ml-2">
+                          <p className="text-xs font-medium tabular-nums">Rp {ride.total_fare.toLocaleString("id-ID")}</p>
+                          <span className={clsx("text-[10px]",
+                            ride.status === "COMPLETED" ? "text-green-400" :
+                            ride.status === "CANCELLED" ? "text-destructive" : "text-blue-400"
+                          )}>{ride.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="flex gap-2 mt-4">
               {!selectedDriver.is_verified && (
                 <button
@@ -282,14 +407,7 @@ export default function DriversPage() {
               )}
               {selectedDriver.is_verified && (
                 <button
-                  onClick={async () => {
-                    const res = await api.toggleDriverOnline(selectedDriver.id, !selectedDriver.is_online);
-                    if (res.success) {
-                      toast("success", `Driver set to ${selectedDriver.is_online ? "offline" : "online"}`);
-                      fetchDrivers();
-                      setSelectedDriver(null);
-                    }
-                  }}
+                  onClick={() => setShowToggleConfirm(true)}
                   className={clsx(
                     "flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
                     selectedDriver.is_online
@@ -303,6 +421,35 @@ export default function DriversPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedDriver && (
+        <ConfirmDialog
+          open={showToggleConfirm}
+          title={selectedDriver.is_online ? "Force driver offline?" : "Set driver online?"}
+          description={
+            selectedDriver.is_online
+              ? `${selectedDriver.full_name} will be taken offline immediately. Any active ride will not be affected, but they won't receive new ride requests.`
+              : `${selectedDriver.full_name} will be set to online and can receive ride requests.`
+          }
+          confirmLabel={selectedDriver.is_online ? "Force Offline" : "Set Online"}
+          variant={selectedDriver.is_online ? "destructive" : "default"}
+          loading={toggling}
+          onCancel={() => setShowToggleConfirm(false)}
+          onConfirm={async () => {
+            setToggling(true);
+            const res = await api.toggleDriverOnline(selectedDriver.id, !selectedDriver.is_online);
+            if (res.success) {
+              toast("success", `Driver set to ${selectedDriver.is_online ? "offline" : "online"}`);
+              fetchDrivers();
+              setSelectedDriver(null);
+            } else {
+              toast("error", "Failed to update driver status");
+            }
+            setToggling(false);
+            setShowToggleConfirm(false);
+          }}
+        />
       )}
     </div>
   );

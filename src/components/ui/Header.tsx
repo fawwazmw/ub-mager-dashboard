@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Bell, Search } from "lucide-react";
 import { useThemeStore } from "@/stores/themeStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { api } from "@/lib/api";
 import { clsx } from "clsx";
+import { Tooltip } from "@/components/ui/Tooltip";
 
 interface Activity {
   id: string;
@@ -18,24 +19,43 @@ export function Header() {
   const { theme, toggleTheme } = useThemeStore();
   const [showNotifs, setShowNotifs] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [apiHealth, setApiHealth] = useState<"healthy" | "unhealthy" | "checking">("checking");
+  const [apiLatency, setApiLatency] = useState<number | null>(null);
   useKeyboardShortcuts();
 
   useEffect(() => {
-    // Generate recent activities from dashboard stats
+    async function checkApi() {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") || "http://localhost:8081";
+      const start = Date.now();
+      try {
+        const res = await fetch(`${apiUrl}/health`, { cache: "no-store" });
+        setApiLatency(Date.now() - start);
+        setApiHealth(res.ok ? "healthy" : "unhealthy");
+      } catch {
+        setApiLatency(Date.now() - start);
+        setApiHealth("unhealthy");
+      }
+    }
+    checkApi();
+    const interval = setInterval(checkApi, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     async function fetchActivity() {
-      const res = await api.getAdminRides(1, 5);
+      const res = await api.getRecentActivity(10);
       if (res.success && res.data) {
-        const acts: Activity[] = res.data.map((ride: any) => ({
-          id: ride.id,
-          type: ride.status === "COMPLETED" ? "ride_completed" :
-                ride.status === "CANCELLED" ? "ride_cancelled" : "ride_completed",
-          message: `${ride.passenger_name}: ${ride.pickup_address} → ${ride.dropoff_address}`,
-          time: ride.requested_at,
-        }));
-        setActivities(acts);
+        setActivities(res.data.map((a: any) => ({
+          id: a.id,
+          type: a.type,
+          message: a.message,
+          time: a.timestamp,
+        })));
       }
     }
     fetchActivity();
+    const interval = setInterval(fetchActivity, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const typeIcons: Record<string, string> = {
@@ -44,9 +64,22 @@ export function Header() {
     ride_cancelled: "🔴",
   };
 
-  return (
+    return (
     <div className="flex items-center gap-2">
-      {/* Command palette hint */}
+      <Tooltip content={apiHealth === "healthy" ? `API OK (${apiLatency}ms)` : "API Unreachable"} position="bottom">
+        <div className="flex items-center gap-1.5 px-2 py-1.5">
+          <div className={clsx(
+            "w-2 h-2 rounded-full",
+            apiHealth === "healthy" && "bg-green-400",
+            apiHealth === "unhealthy" && "bg-destructive",
+            apiHealth === "checking" && "bg-muted-foreground animate-pulse"
+          )} />
+          {apiLatency !== null && apiHealth === "healthy" && (
+            <span className="text-[10px] text-muted-foreground tabular-nums hidden sm:inline">{apiLatency}ms</span>
+          )}
+        </div>
+      </Tooltip>
+
       <button
         onClick={() => {
           // Trigger ⌘K programmatically

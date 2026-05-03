@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Trophy, Star, Route, DollarSign } from "lucide-react";
+import { Trophy, Star, Route, DollarSign, Download } from "lucide-react";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { clsx } from "clsx";
 
 interface DriverPerf {
@@ -17,9 +18,13 @@ interface DriverPerf {
   avg_fare: number;
 }
 
+type SortBy = "revenue" | "trips" | "rating";
+
 export default function DriverLeaderboardPage() {
+  usePageTitle("Leaderboard");
   const [drivers, setDrivers] = useState<DriverPerf[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<SortBy>("revenue");
 
   useEffect(() => {
     async function fetch() {
@@ -30,29 +35,86 @@ export default function DriverLeaderboardPage() {
     fetch();
   }, []);
 
+  const sorted = [...drivers].sort((a, b) => {
+    if (sortBy === "trips") return b.total_trips - a.total_trips;
+    if (sortBy === "rating") return b.rating - a.rating;
+    return b.total_revenue - a.total_revenue;
+  });
+
+  function exportCSV() {
+    if (drivers.length === 0) return;
+    const headers = ["Rank", "Name", "Phone", "Vehicle", "Plate", "Rating", "Trips", "Revenue", "Avg Fare"];
+    const rows = sorted.map((d, i) => [
+      i + 1, d.full_name, d.phone, d.vehicle_type, d.license_plate,
+      d.rating.toFixed(1), d.total_trips, d.total_revenue, d.avg_fare.toFixed(0),
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `driver-leaderboard-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const medals = ["🥇", "🥈", "🥉"];
 
   return (
     <div>
-      <div className="mb-6">
-        <div className="flex items-center gap-2">
-          <Trophy size={20} className="text-yellow-400" />
-          <h1 className="text-2xl font-bold">Driver Leaderboard</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <Trophy size={20} className="text-yellow-400" />
+            <h1 className="text-2xl font-bold">Driver Leaderboard</h1>
+          </div>
+          <p className="text-muted-foreground text-sm mt-1">Top performing drivers by {sortBy}</p>
         </div>
-        <p className="text-muted-foreground text-sm mt-1">Top performing drivers by revenue</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportCSV}
+            disabled={drivers.length === 0}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-30"
+          >
+            <Download size={12} />
+            CSV
+          </button>
+          {(["revenue", "trips", "rating"] as SortBy[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => setSortBy(s)}
+              className={clsx(
+                "px-2.5 py-1.5 text-xs rounded-lg border transition-colors capitalize",
+                sortBy === s
+                  ? "bg-primary/10 border-primary/20 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-20 bg-muted rounded-xl animate-pulse" />
+            <div key={i} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
+              <div className="skeleton h-6 w-8" />
+              <div className="skeleton h-10 w-10 rounded-full" />
+              <div className="flex-1">
+                <div className="skeleton h-4 w-32 mb-1" />
+                <div className="skeleton h-3 w-24" />
+              </div>
+              <div className="skeleton h-5 w-20" />
+            </div>
           ))}
         </div>
-      ) : drivers.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No driver data yet</div>
       ) : (
         <div className="space-y-3">
-          {drivers.map((driver, index) => (
+          {sorted.map((driver, index) => (
             <div
               key={driver.id}
               className={clsx(

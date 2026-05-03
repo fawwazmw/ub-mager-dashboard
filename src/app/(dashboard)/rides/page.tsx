@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { api } from "@/lib/api";
-import { Search, Download } from "lucide-react";
+import { Search, Download, Route as RouteIcon, Trash2 } from "lucide-react";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { TimeAgo } from "@/components/ui/TimeAgo";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/components/ui/Toast";
 import { clsx } from "clsx";
 
 interface Ride {
@@ -37,6 +41,7 @@ const statusColors: Record<string, string> = {
 const statusOptions = ["", "SEARCHING", "MATCHED", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
 
 export default function RidesPage() {
+  usePageTitle("Rides");
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -46,7 +51,36 @@ export default function RidesPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [focusedRow, setFocusedRow] = useState(-1);
+  const [showBulkCancel, setShowBulkCancel] = useState(false);
+  const [bulkCancelling, setBulkCancelling] = useState(false);
+  const tableRef = useRef<HTMLTableSectionElement>(null);
   const router = useRouter();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement) return;
+      if (rides.length === 0) return;
+
+      if (e.key === "ArrowDown" || e.key === "j") {
+        e.preventDefault();
+        setFocusedRow((prev) => Math.min(prev + 1, rides.length - 1));
+      } else if (e.key === "ArrowUp" || e.key === "k") {
+        e.preventDefault();
+        setFocusedRow((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === "Enter" && focusedRow >= 0) {
+        e.preventDefault();
+        router.push(`/rides/${rides[focusedRow].id}`);
+      } else if (e.key === "Escape") {
+        setFocusedRow(-1);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [rides, focusedRow, router]);
+
+  useEffect(() => { setFocusedRow(-1); }, [rides]);
 
   useEffect(() => {
     async function fetchCounts() {
@@ -119,6 +153,13 @@ export default function RidesPage() {
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
           {/* Export */}
           <button
+            onClick={() => setShowBulkCancel(true)}
+            className="flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80 border border-destructive/20 px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            <Trash2 size={12} />
+            Cancel Stuck
+          </button>
+          <button
             onClick={exportCSV}
             disabled={rides.length === 0}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-30"
@@ -166,7 +207,8 @@ export default function RidesPage() {
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[700px]">
           <thead>
             <tr className="border-b border-border text-muted-foreground text-xs uppercase tracking-wider">
               <th className="text-left px-4 py-3 w-8">#</th>
@@ -178,18 +220,39 @@ export default function RidesPage() {
               <th className="text-right px-4 py-3">Date</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={tableRef}>
             {loading ? (
               [...Array(5)].map((_, i) => (
                 <tr key={i} className="border-b border-border">
-                  <td colSpan={7} className="px-4 py-4"><div className="h-4 bg-muted rounded animate-pulse" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-6" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-36" /><div className="skeleton h-3 w-28 mt-1" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-24" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-20" /></td>
+                  <td className="px-4 py-4 text-center"><div className="skeleton h-5 w-16 mx-auto" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-4 w-20 ml-auto" /></td>
+                  <td className="px-4 py-4"><div className="skeleton h-3 w-14 ml-auto" /></td>
                 </tr>
               ))
             ) : rides.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No rides found</td></tr>
+              <tr><td colSpan={7}>
+                <EmptyState
+                  icon={<RouteIcon size={28} />}
+                  title="No rides found"
+                  description={search ? `No rides matching "${search}"` : "No rides match the current filter."}
+                  action={search ? { label: "Clear search", onClick: () => { setSearch(""); setSearchInput(""); } } : undefined}
+                />
+              </td></tr>
             ) : (
-              rides.map((ride) => (
-                <tr key={ride.id} onClick={() => router.push(`/rides/${ride.id}`)} className="border-b border-border hover:bg-muted/30 transition-colors cursor-pointer">
+              rides.map((ride, idx) => (
+                <tr
+                  key={ride.id}
+                  onClick={() => router.push(`/rides/${ride.id}`)}
+                  onMouseEnter={() => setFocusedRow(idx)}
+                  className={clsx(
+                    "border-b border-border transition-colors cursor-pointer",
+                    focusedRow === idx ? "bg-muted/50 ring-1 ring-inset ring-primary/20" : "hover:bg-muted/30"
+                  )}
+                >
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <CopyButton text={ride.id} />
                   </td>
@@ -234,6 +297,7 @@ export default function RidesPage() {
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Pagination */}
         {totalPages > 1 && (
@@ -258,6 +322,28 @@ export default function RidesPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={showBulkCancel}
+        title="Cancel all stuck rides?"
+        description="This will cancel all rides that have been in SEARCHING status for more than 30 minutes with no driver match. This action cannot be undone."
+        confirmLabel="Cancel Stuck Rides"
+        variant="destructive"
+        loading={bulkCancelling}
+        onCancel={() => setShowBulkCancel(false)}
+        onConfirm={async () => {
+          setBulkCancelling(true);
+          const res = await api.bulkCancelStuckRides();
+          if (res.success && res.data) {
+            toast("success", `${res.data.cancelled} stuck ride(s) cancelled`);
+            fetchRides();
+          } else {
+            toast("error", "Failed to cancel stuck rides");
+          }
+          setBulkCancelling(false);
+          setShowBulkCancel(false);
+        }}
+      />
     </div>
   );
 }

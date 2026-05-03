@@ -2,17 +2,21 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { Users, Car, Route, DollarSign, Activity, XCircle, TrendingUp, Clock, MapPin, BarChart3, ArrowRight } from "lucide-react";
+import { Users, Car, Route, DollarSign, Activity, XCircle, TrendingUp, Clock, MapPin, BarChart3, ArrowRight, Pause, Play, AlertTriangle } from "lucide-react";
 import { TimeAgo } from "@/components/ui/TimeAgo";
 import { clsx } from "clsx";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Sparkline } from "@/components/ui/Sparkline";
+import { SkeletonCard } from "@/components/ui/Skeleton";
+import { usePageTitle } from "@/hooks/usePageTitle";
 
 interface Stats {
   total_users: number;
   total_drivers: number;
   online_drivers: number;
+  pending_drivers: number;
   total_rides: number;
   active_rides: number;
   completed_today: number;
@@ -98,6 +102,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const router = useRouter();
 
   async function fetchAll() {
     const [statsRes, revenueRes, dailyRes, ridesRes] = await Promise.all([
@@ -114,28 +120,33 @@ export default function DashboardPage() {
     setLastUpdated(new Date());
   }
 
+  usePageTitle("Dashboard");
+
   useEffect(() => {
     fetchAll();
-    // Auto-refresh every 30 seconds
+  }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
     const interval = setInterval(fetchAll, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [autoRefresh]);
 
   if (loading) {
     return (
-      <div className="animate-pulse space-y-6">
-        <div className="h-8 w-48 bg-muted rounded" />
-        <div className="grid grid-cols-4 gap-4">
+      <div className="space-y-6">
+        <div className="skeleton h-8 w-48" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-28 bg-muted rounded-xl" />
+            <SkeletonCard key={i} />
           ))}
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-24 bg-muted rounded-xl" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <SkeletonCard key={i} />
           ))}
         </div>
-        <div className="h-64 bg-muted rounded-xl" />
+        <div className="skeleton h-64 w-full" />
       </div>
     );
   }
@@ -147,12 +158,24 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">Platform overview and real-time metrics</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {lastUpdated && (
             <span className="text-xs text-muted-foreground tabular-nums">
-              Updated {lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              {lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </span>
           )}
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={clsx(
+              "p-1.5 rounded-lg border transition-colors",
+              autoRefresh
+                ? "border-primary/20 text-primary bg-primary/10"
+                : "border-border text-muted-foreground hover:text-foreground"
+            )}
+            title={autoRefresh ? "Pause auto-refresh" : "Resume auto-refresh"}
+          >
+            {autoRefresh ? <Pause size={12} /> : <Play size={12} />}
+          </button>
           <button
             onClick={fetchAll}
             className="text-xs text-muted-foreground hover:text-primary border border-border px-2.5 py-1.5 rounded-lg transition-colors"
@@ -162,7 +185,20 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Primary Stats */}
+      {(stats?.pending_drivers || 0) > 0 && (
+        <Link
+          href="/drivers?status=pending"
+          className="flex items-center gap-3 bg-warning/5 border border-warning/20 rounded-xl px-4 py-3 mb-4 hover:bg-warning/10 transition-colors group"
+        >
+          <AlertTriangle size={16} className="text-warning shrink-0" />
+          <p className="text-sm flex-1">
+            <span className="font-medium text-warning">{stats?.pending_drivers}</span>
+            <span className="text-muted-foreground"> driver{(stats?.pending_drivers || 0) > 1 ? "s" : ""} pending verification</span>
+          </p>
+          <ArrowRight size={14} className="text-muted-foreground group-hover:text-warning transition-colors" />
+        </Link>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-page-in">
         <StatCard label="Online Drivers" value={stats?.online_drivers || 0} icon={Activity} color="primary" subtitle={`of ${stats?.total_drivers || 0} total`} />
         <StatCard label="Active Rides" value={stats?.active_rides || 0} icon={Route} color="warning" subtitle="in progress now" />
@@ -293,7 +329,7 @@ export default function DashboardPage() {
             <table className="w-full text-sm">
               <tbody>
                 {recentRides.map((ride) => (
-                  <tr key={ride.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <tr key={ride.id} onClick={() => router.push(`/rides/${ride.id}`)} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer">
                     <td className="px-5 py-3">
                       <p className="font-medium truncate max-w-[180px]">{ride.pickup_address}</p>
                       <p className="text-xs text-muted-foreground truncate max-w-[180px]">→ {ride.dropoff_address}</p>
