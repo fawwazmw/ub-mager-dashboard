@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
 import { downloadCSV } from "@/lib/csv";
 import { useDrivers, useDriverRides } from "@/hooks/useAnalytics";
+import { useBulkVerifyDrivers, useVerifyDriver, useToggleDriverOnline } from "@/hooks/useMutations";
 import type { DriverRideItem } from "@/lib/types";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/components/ui/Toast";
@@ -26,13 +25,15 @@ export default function DriversPage() {
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showToggleConfirm, setShowToggleConfirm] = useState(false);
-  const [toggling, setToggling] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const queryClient = useQueryClient();
 
   const { data: drivers = [], isLoading: loading } = useDrivers(1, 50, filter, search);
   const { data: driverRides = [], isLoading: ridesLoading } = useDriverRides(selectedDriver?.id ?? null, 5);
+
+  const bulkVerify = useBulkVerifyDrivers();
+  const verifyDriver = useVerifyDriver();
+  const toggleOnline = useToggleDriverOnline();
 
   const pendingDrivers = drivers.filter(d => !d.is_verified);
   const hasSelection = selected.size > 0;
@@ -54,20 +55,11 @@ export default function DriversPage() {
     }
   }
 
-  function invalidateDrivers() {
-    queryClient.invalidateQueries({ queryKey: ["drivers"] });
-  }
-
   async function handleBulkVerify() {
     const ids = Array.from(selected);
-    let success = 0;
-    for (const id of ids) {
-      const res = await api.verifyDriver(id);
-      if (res.success) success++;
-    }
+    const success = await bulkVerify.mutateAsync(ids);
     toast("success", `${success} driver(s) verified`);
     setSelected(new Set());
-    invalidateDrivers();
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -87,13 +79,12 @@ export default function DriversPage() {
   }
 
   async function handleVerify(driverId: string) {
-    const res = await api.verifyDriver(driverId);
-    if (res.success) {
+    try {
+      await verifyDriver.mutateAsync(driverId);
       toast("success", "Driver verified successfully");
-    } else {
+    } catch {
       toast("error", "Failed to verify driver");
     }
-    invalidateDrivers();
     setSelectedDriver(null);
   }
 
@@ -401,19 +392,16 @@ export default function DriversPage() {
           }
           confirmLabel={selectedDriver.is_online ? "Force Offline" : "Set Online"}
           variant={selectedDriver.is_online ? "destructive" : "default"}
-          loading={toggling}
+          loading={toggleOnline.isPending}
           onCancel={() => setShowToggleConfirm(false)}
           onConfirm={async () => {
-            setToggling(true);
-            const res = await api.toggleDriverOnline(selectedDriver.id, !selectedDriver.is_online);
-            if (res.success) {
+            try {
+              await toggleOnline.mutateAsync({ driverId: selectedDriver.id, isOnline: !selectedDriver.is_online });
               toast("success", `Driver set to ${selectedDriver.is_online ? "offline" : "online"}`);
-              invalidateDrivers();
               setSelectedDriver(null);
-            } else {
+            } catch {
               toast("error", "Failed to update driver status");
             }
-            setToggling(false);
             setShowToggleConfirm(false);
           }}
         />

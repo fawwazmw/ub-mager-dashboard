@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
-import { api } from "@/lib/api";
 import { useRideDetail } from "@/hooks/useAnalytics";
+import { useAdminCancelRide } from "@/hooks/useMutations";
 import { ArrowLeft, MapPin, User, Car, Clock, DollarSign, CheckCircle, XCircle } from "lucide-react";
 import { RIDE_STATUS_COLORS_BORDERED } from "@/lib/constants";
 import { clsx } from "clsx";
@@ -19,12 +18,11 @@ const RideMap = dynamic(() => import("@/components/map/RideMap"), { ssr: false }
 export default function RideDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const rideId = params.id as string;
   const { data: ride, isLoading: loading } = useRideDetail(rideId);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
   const { toast } = useToast();
+  const cancelRide = useAdminCancelRide();
 
   if (loading) {
     return (
@@ -382,18 +380,15 @@ export default function RideDetailPage() {
         description={`This will cancel the ride for ${ride.passenger_name}. The driver will be notified and the passenger will not be charged. This action cannot be undone.`}
         confirmLabel="Cancel Ride"
         variant="destructive"
-        loading={cancelling}
+        loading={cancelRide.isPending}
         onCancel={() => setShowCancelConfirm(false)}
         onConfirm={async () => {
-          setCancelling(true);
-          const res = await api.adminCancelRide(ride.id);
-          if (res.success) {
+          try {
+            await cancelRide.mutateAsync({ rideId: ride.id });
             toast("success", "Ride cancelled");
-            queryClient.invalidateQueries({ queryKey: ["ride-detail", rideId] });
-          } else {
+          } catch {
             toast("error", "Failed to cancel ride");
           }
-          setCancelling(false);
           setShowCancelConfirm(false);
         }}
       />

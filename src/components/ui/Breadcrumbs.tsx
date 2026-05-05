@@ -70,26 +70,27 @@ export function Breadcrumbs() {
   });
 
   return (
-    <div className="flex items-center gap-3 mb-6">
-      <nav className="flex items-center gap-1.5 text-xs text-muted-foreground flex-1 min-w-0">
-        <Link href="/" className="hover:text-foreground transition-colors">
-          <Home size={12} />
-        </Link>
-        {crumbs.map((crumb) => (
-          <span key={crumb.href} className="flex items-center gap-1.5">
-            <ChevronRight size={10} />
-            {crumb.isLast ? (
-              <span className="text-foreground">{crumb.label}</span>
-            ) : (
-              <Link href={crumb.href} className="hover:text-foreground transition-colors">
-                {crumb.label}
-              </Link>
-            )}
-          </span>
-        ))}
-      </nav>
+    <div className="sticky top-0 z-30 backdrop-blur-sm mb-6 px-4 lg:px-8">
+      <div className="flex items-center gap-3 h-16">
+        <nav className="flex items-center gap-1.5 text-xs text-muted-foreground flex-1 min-w-0">
+          <Link href="/" className="hover:text-foreground transition-colors">
+            <Home size={14} />
+          </Link>
+          {crumbs.map((crumb) => (
+            <span key={crumb.href} className="flex items-center gap-1.5">
+              <ChevronRight size={10} />
+              {crumb.isLast ? (
+                <span className="text-foreground font-medium">{crumb.label}</span>
+              ) : (
+                <Link href={crumb.href} className="hover:text-foreground transition-colors">
+                  {crumb.label}
+                </Link>
+              )}
+            </span>
+          ))}
+        </nav>
 
-      <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
         <Tooltip content={apiHealth === "healthy" ? `API OK (${apiLatency}ms)` : "API Unreachable"} position="bottom">
           <div className="flex items-center gap-1.5 px-2 py-1.5">
             <div className={clsx(
@@ -106,28 +107,29 @@ export function Breadcrumbs() {
 
         <button
           onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-          className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors text-xs"
+          className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors text-xs"
           aria-label="Open command palette"
         >
-          <Search size={13} />
-          <kbd className="text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border font-mono">⌘K</kbd>
+          <Search size={14} />
+          <span className="text-muted-foreground">Search...</span>
+          <kbd className="text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border font-mono ml-4">⌘K</kbd>
         </button>
 
         <button
           onClick={toggleTheme}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
         >
-          {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
         <div className="relative">
           <button
             onClick={() => setShowNotifs(!showNotifs)}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors relative"
+            className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors relative"
             aria-label="Toggle notifications"
           >
-            <Bell size={15} />
+            <Bell size={16} />
             {activities.length > 0 && (
               <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-primary text-[8px] text-primary-foreground rounded-full flex items-center justify-center font-bold">
                 {activities.length}
@@ -165,6 +167,7 @@ export function Breadcrumbs() {
             </>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

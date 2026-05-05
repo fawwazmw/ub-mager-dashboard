@@ -18,6 +18,8 @@ import {
   ChevronsRight,
   Wifi,
   WifiOff,
+  Shield,
+  Users,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useSidebarStore } from "@/stores/sidebarStore";
@@ -30,6 +32,8 @@ const navItems = [
   { href: "/live-tracking", label: "Live Tracking", icon: MapPin },
   { href: "/drivers", label: "Drivers", icon: Car },
   { href: "/rides", label: "Rides", icon: Route },
+  { href: "/users", label: "Users", icon: Users },
+  { href: "/reports", label: "Reports", icon: Shield },
   { href: "/analytics/revenue", label: "Analytics", icon: BarChart3 },
   { href: "/analytics/drivers", label: "Leaderboard", icon: Trophy },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -48,6 +52,7 @@ export function Sidebar() {
         "/live-tracking": statsData.online_drivers,
         "/rides": statsData.active_rides,
         "/drivers": statsData.pending_drivers || 0,
+        "/reports": statsData.pending_reports || 0,
       }
     : {};
 

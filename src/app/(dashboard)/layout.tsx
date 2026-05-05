@@ -27,7 +27,7 @@ export default function DashboardLayout({
         <div className="flex min-h-screen">
           <Sidebar />
           <div className={`flex-1 transition-all duration-200 ${collapsed ? "lg:ml-16" : "lg:ml-64"}`}>
-            <main className="p-4 lg:p-8">
+            <main className="px-4 pb-4 lg:px-8 lg:pb-8">
               <Breadcrumbs />
               <ErrorBoundary>
                 <PageTransition>

@@ -2,11 +2,10 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { api } from "@/lib/api";
 import { downloadCSV } from "@/lib/csv";
 import { useAdminRides, useRideCountsByStatus } from "@/hooks/useAnalytics";
+import { useBulkCancelStuckRides } from "@/hooks/useMutations";
 import type { RideListItem } from "@/lib/types";
 import { Search, Download, Route as RouteIcon, Trash2 } from "lucide-react";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -28,11 +27,10 @@ export default function RidesPage() {
   const [searchInput, setSearchInput] = useState("");
   const [focusedRow, setFocusedRow] = useState(-1);
   const [showBulkCancel, setShowBulkCancel] = useState(false);
-  const [bulkCancelling, setBulkCancelling] = useState(false);
   const tableRef = useRef<HTMLTableSectionElement>(null);
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const bulkCancel = useBulkCancelStuckRides();
 
   const { data: ridesResult, isLoading: loading } = useAdminRides(page, 15, statusFilter, search);
   const rides = ridesResult?.data ?? [];
@@ -279,19 +277,15 @@ export default function RidesPage() {
         description="This will cancel all rides that have been in SEARCHING status for more than 30 minutes with no driver match. This action cannot be undone."
         confirmLabel="Cancel Stuck Rides"
         variant="destructive"
-        loading={bulkCancelling}
+        loading={bulkCancel.isPending}
         onCancel={() => setShowBulkCancel(false)}
         onConfirm={async () => {
-          setBulkCancelling(true);
-          const res = await api.bulkCancelStuckRides();
-          if (res.success && res.data) {
-            toast("success", `${res.data.cancelled} stuck ride(s) cancelled`);
-            queryClient.invalidateQueries({ queryKey: ["admin-rides"] });
-            queryClient.invalidateQueries({ queryKey: ["ride-counts-by-status"] });
-          } else {
+          try {
+            const result = await bulkCancel.mutateAsync();
+            toast("success", `${result.cancelled} stuck ride(s) cancelled`);
+          } catch {
             toast("error", "Failed to cancel stuck rides");
           }
-          setBulkCancelling(false);
           setShowBulkCancel(false);
         }}
       />

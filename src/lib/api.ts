@@ -15,6 +15,8 @@ import type {
   RideListItem,
   RideDetail,
   RideCountByStatus,
+  ReportListItem,
+  UserListItem,
 } from "./types";
 import { STORAGE_KEYS } from "./constants";
 
@@ -207,6 +209,38 @@ class ApiClient {
     if (status) params.set("status", status);
     if (search) params.set("search", search);
     return this.request<RideListItem[]>(`/admin/rides?${params}`);
+  }
+
+  async getReports(page = 1, perPage = 20, status = "") {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (status) params.set("status", status);
+    return this.request<ReportListItem[]>(`/admin/reports?${params}`);
+  }
+
+  async resolveReport(reportId: string, status: string, adminNote = "") {
+    return this.request<{ message: string }>(`/admin/reports/${reportId}/resolve`, {
+      method: "PUT",
+      body: JSON.stringify({ status, admin_note: adminNote }),
+    });
+  }
+
+  async getPendingReportsCount() {
+    return this.request<{ pending: number }>("/admin/reports/pending-count");
+  }
+
+  async getUsers(page = 1, perPage = 20, role = "", search = "") {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (role) params.set("role", role);
+    if (search) params.set("search", search);
+    return this.request<UserListItem[]>(`/admin/users?${params}`);
+  }
+
+  async suspendUser(userId: string) {
+    return this.request<{ message: string }>(`/admin/users/${userId}/suspend`, { method: "PUT" });
+  }
+
+  async unsuspendUser(userId: string) {
+    return this.request<{ message: string }>(`/admin/users/${userId}/unsuspend`, { method: "PUT" });
   }
 }
 

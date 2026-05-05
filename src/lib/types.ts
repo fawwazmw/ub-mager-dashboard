@@ -8,6 +8,7 @@ export interface User {
   role: "ADMIN" | "DRIVER" | "PASSENGER";
   avatar_url: string | null;
   is_active: boolean;
+  is_student_verified: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -153,6 +154,7 @@ export interface DashboardStats {
   completed_today: number;
   revenue_today: number;
   cancelled_today: number;
+  pending_reports: number;
 }
 
 export interface RevenueStats {
@@ -240,4 +242,31 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   meta?: ApiMeta;
   error?: ApiError;
+}
+
+// ─── Reports ─────────────────────────────────────────
+
+export interface UserListItem {
+  id: string;
+  full_name: string;
+  phone: string;
+  email: string;
+  role: "ADMIN" | "DRIVER" | "PASSENGER";
+  is_active: boolean;
+  is_student_verified: boolean;
+  created_at: string;
+}
+
+export type ReportStatus = "PENDING" | "REVIEWED" | "RESOLVED";
+export type ReportCategory = "RUDE_BEHAVIOR" | "SAFETY_CONCERN" | "FRAUD" | "SPAM" | "OTHER";
+
+export interface ReportListItem {
+  id: string;
+  reporter_name: string;
+  reported_name: string;
+  category: ReportCategory;
+  description: string;
+  status: ReportStatus;
+  ride_id: string | null;
+  created_at: string;
 }
