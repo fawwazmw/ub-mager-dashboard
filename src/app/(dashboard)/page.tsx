@@ -1,54 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api } from "@/lib/api";
-import { Users, Car, Route, DollarSign, Activity, XCircle, TrendingUp, Clock, MapPin, BarChart3, ArrowRight, Pause, Play, AlertTriangle } from "lucide-react";
+import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { useRevenueStats, useDailyRevenue, useAdminRides } from "@/hooks/useAnalytics";
+import { Users, Car, Route, DollarSign, Activity, XCircle, TrendingUp, Clock, MapPin, BarChart3, ArrowRight, AlertTriangle } from "lucide-react";
+import { RIDE_STATUS_COLORS } from "@/lib/constants";
 import { TimeAgo } from "@/components/ui/TimeAgo";
 import { clsx } from "clsx";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Sparkline } from "@/components/ui/Sparkline";
+import { formatCurrency } from "@/lib/format";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { usePageTitle } from "@/hooks/usePageTitle";
 
-interface Stats {
-  total_users: number;
-  total_drivers: number;
-  online_drivers: number;
-  pending_drivers: number;
-  total_rides: number;
-  active_rides: number;
-  completed_today: number;
-  revenue_today: number;
-  cancelled_today: number;
-}
-
-interface RevenueStats {
-  period: string;
-  total_revenue: number;
-  total_rides: number;
-  avg_fare: number;
-}
-
-interface Ride {
-  id: string;
-  status: string;
-  passenger_name: string;
-  pickup_address: string;
-  dropoff_address: string;
-  total_fare: number;
-  vehicle_type: string;
-  requested_at: string;
-}
-
-interface DailyRevenue {
-  date: string;
-  revenue: number;
-  rides: number;
-}
-
-function StatCard({ label, value, icon: Icon, color = "primary", subtitle, sparkData }: { label: string; value: string | number; icon: any; color?: string; subtitle?: string; sparkData?: number[] }) {
+function StatCard({ label, value, icon: Icon, color = "primary", subtitle, sparkData }: { label: string; value: string | number; icon: React.ElementType; color?: string; subtitle?: string; sparkData?: number[] }) {
   const colorMap: Record<string, string> = {
     primary: "text-primary bg-primary/10 border-primary/20",
     warning: "text-warning bg-warning/10 border-warning/20",
@@ -84,53 +50,19 @@ function StatCard({ label, value, icon: Icon, color = "primary", subtitle, spark
   );
 }
 
-const statusColors: Record<string, string> = {
-  SEARCHING: "text-yellow-400 bg-yellow-400/10",
-  MATCHED: "text-blue-400 bg-blue-400/10",
-  DRIVER_EN_ROUTE: "text-blue-400 bg-blue-400/10",
-  ARRIVED_AT_PICKUP: "text-purple-400 bg-purple-400/10",
-  IN_PROGRESS: "text-primary bg-primary/10",
-  COMPLETED: "text-amber-400 bg-amber-400/10",
-  CANCELLED: "text-destructive bg-destructive/10",
-};
+
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [revenue, setRevenue] = useState<RevenueStats | null>(null);
-  const [dailyRevenue, setDailyRevenue] = useState<DailyRevenue[]>([]);
-  const [recentRides, setRecentRides] = useState<Ride[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const router = useRouter();
-
-  async function fetchAll() {
-    const [statsRes, revenueRes, dailyRes, ridesRes] = await Promise.all([
-      api.getDashboardStats(),
-      api.getRevenueStats("month"),
-      api.getDailyRevenue(7),
-      api.getAdminRides(1, 5),
-    ]);
-    if (statsRes.success) setStats(statsRes.data);
-    if (revenueRes.success) setRevenue(revenueRes.data);
-    if (dailyRes.success) setDailyRevenue(dailyRes.data || []);
-    if (ridesRes.success) setRecentRides(ridesRes.data || []);
-    setLoading(false);
-    setLastUpdated(new Date());
-  }
-
   usePageTitle("Dashboard");
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  const { data: stats, dataUpdatedAt } = useDashboardStats();
+  const { data: revenue } = useRevenueStats("month");
+  const { data: dailyRevenue = [] } = useDailyRevenue(7);
+  const { data: ridesResult } = useAdminRides(1, 5, "", "");
+  const recentRides = ridesResult?.data ?? [];
 
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(fetchAll, 30000);
-    return () => clearInterval(interval);
-  }, [autoRefresh]);
+  const loading = !stats;
 
   if (loading) {
     return (
@@ -151,6 +83,8 @@ export default function DashboardPage() {
     );
   }
 
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -158,63 +92,41 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">Platform overview and real-time metrics</p>
         </div>
-        <div className="flex items-center gap-2">
-          {lastUpdated && (
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-            </span>
-          )}
-          <button
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={clsx(
-              "p-1.5 rounded-lg border transition-colors",
-              autoRefresh
-                ? "border-primary/20 text-primary bg-primary/10"
-                : "border-border text-muted-foreground hover:text-foreground"
-            )}
-            title={autoRefresh ? "Pause auto-refresh" : "Resume auto-refresh"}
-          >
-            {autoRefresh ? <Pause size={12} /> : <Play size={12} />}
-          </button>
-          <button
-            onClick={fetchAll}
-            className="text-xs text-muted-foreground hover:text-primary border border-border px-2.5 py-1.5 rounded-lg transition-colors"
-          >
-            Refresh
-          </button>
-        </div>
+        {lastUpdated && (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </span>
+        )}
       </div>
 
-      {(stats?.pending_drivers || 0) > 0 && (
+      {(stats.pending_drivers || 0) > 0 && (
         <Link
           href="/drivers?status=pending"
           className="flex items-center gap-3 bg-warning/5 border border-warning/20 rounded-xl px-4 py-3 mb-4 hover:bg-warning/10 transition-colors group"
         >
           <AlertTriangle size={16} className="text-warning shrink-0" />
           <p className="text-sm flex-1">
-            <span className="font-medium text-warning">{stats?.pending_drivers}</span>
-            <span className="text-muted-foreground"> driver{(stats?.pending_drivers || 0) > 1 ? "s" : ""} pending verification</span>
+            <span className="font-medium text-warning">{stats.pending_drivers}</span>
+            <span className="text-muted-foreground"> driver{stats.pending_drivers > 1 ? "s" : ""} pending verification</span>
           </p>
           <ArrowRight size={14} className="text-muted-foreground group-hover:text-warning transition-colors" />
         </Link>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-page-in">
-        <StatCard label="Online Drivers" value={stats?.online_drivers || 0} icon={Activity} color="primary" subtitle={`of ${stats?.total_drivers || 0} total`} />
-        <StatCard label="Active Rides" value={stats?.active_rides || 0} icon={Route} color="warning" subtitle="in progress now" />
-        <StatCard label="Completed Today" value={stats?.completed_today || 0} icon={Route} color="primary" subtitle="rides finished" sparkData={dailyRevenue.map(d => d.rides)} />
-        <StatCard label="Revenue Today" value={`Rp ${(stats?.revenue_today || 0).toLocaleString("id-ID")}`} icon={DollarSign} color="primary" sparkData={dailyRevenue.map(d => d.revenue)} />
+        <StatCard label="Online Drivers" value={stats.online_drivers} icon={Activity} color="primary" subtitle={`of ${stats.total_drivers} total`} />
+        <StatCard label="Active Rides" value={stats.active_rides} icon={Route} color="warning" subtitle="in progress now" />
+        <StatCard label="Completed Today" value={stats.completed_today} icon={Route} color="primary" subtitle="rides finished" sparkData={dailyRevenue.map(d => d.rides)} />
+        <StatCard label="Revenue Today" value={formatCurrency(stats.revenue_today)} icon={DollarSign} color="primary" sparkData={dailyRevenue.map(d => d.revenue)} />
       </div>
 
-      {/* Secondary Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Total Users" value={stats?.total_users || 0} icon={Users} color="blue" />
-        <StatCard label="Total Drivers" value={stats?.total_drivers || 0} icon={Car} color="blue" />
-        <StatCard label="Total Rides" value={stats?.total_rides || 0} icon={Route} color="blue" subtitle="all time" />
-        <StatCard label="Cancelled Today" value={stats?.cancelled_today || 0} icon={XCircle} color="destructive" />
+        <StatCard label="Total Users" value={stats.total_users} icon={Users} color="blue" />
+        <StatCard label="Total Drivers" value={stats.total_drivers} icon={Car} color="blue" />
+        <StatCard label="Total Rides" value={stats.total_rides} icon={Route} color="blue" subtitle="all time" />
+        <StatCard label="Cancelled Today" value={stats.cancelled_today} icon={XCircle} color="destructive" />
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <Link href="/live-tracking" className="flex items-center gap-3 bg-card border border-border rounded-xl p-4 hover:border-primary/30 transition-colors group">
           <MapPin size={18} className="text-primary" />
@@ -238,7 +150,6 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Revenue Chart */}
       {dailyRevenue.length > 0 && (
         <div className="bg-card border border-border rounded-xl p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -276,7 +187,7 @@ export default function DashboardPage() {
                     fontSize: "12px",
                   }}
                   labelFormatter={(val) => new Date(val).toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" })}
-                  formatter={(value: number) => [`Rp ${value.toLocaleString("id-ID")}`, "Revenue"]}
+                  formatter={(value: number) => [formatCurrency(value), "Revenue"]}
                 />
                 <Area
                   type="monotone"
@@ -291,9 +202,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Bottom Section: Revenue Summary + Recent Rides */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Monthly Revenue Card */}
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-medium">Monthly Summary</h2>
@@ -302,7 +211,7 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <div>
               <p className="text-xs text-muted-foreground mb-1">Revenue (this month)</p>
-              <p className="text-xl font-bold tabular-nums">Rp {(revenue?.total_revenue || 0).toLocaleString("id-ID")}</p>
+              <p className="text-xl font-bold tabular-nums">{formatCurrency(revenue?.total_revenue || 0)}</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -311,13 +220,12 @@ export default function DashboardPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Avg Fare</p>
-                <p className="text-lg font-bold tabular-nums">Rp {(revenue?.avg_fare || 0).toLocaleString("id-ID", { maximumFractionDigits: 0 })}</p>
+                <p className="text-lg font-bold tabular-nums">{formatCurrency(revenue?.avg_fare || 0)}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Recent Rides */}
         <div className="lg:col-span-2 bg-card border border-border rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <h2 className="text-sm font-medium">Recent Rides</h2>
@@ -335,12 +243,12 @@ export default function DashboardPage() {
                       <p className="text-xs text-muted-foreground truncate max-w-[180px]">→ {ride.dropoff_address}</p>
                     </td>
                     <td className="px-3 py-3">
-                      <span className={clsx("text-xs px-2 py-0.5 rounded", statusColors[ride.status] || "text-muted-foreground")}>
+                      <span className={clsx("text-xs px-2 py-0.5 rounded", RIDE_STATUS_COLORS[ride.status] || "text-muted-foreground")}>
                         {ride.status}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-muted-foreground text-xs">
-                      Rp {ride.total_fare.toLocaleString("id-ID")}
+                      {formatCurrency(ride.total_fare)}
                     </td>
                     <td className="px-5 py-3 text-right text-muted-foreground text-xs">
                       <TimeAgo date={ride.requested_at} />
@@ -355,5 +263,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-

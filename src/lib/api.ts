@@ -1,29 +1,45 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081/api/v1";
+import type {
+  ApiResponse,
+  AuthResponse,
+  User,
+  DashboardStats,
+  DriverListItem,
+  DriverDetail,
+  DriverPerformance,
+  DriverRideItem,
+  RevenueStats,
+  RideStats,
+  DailyRevenue,
+  PeakHourItem,
+  ActivityItem,
+  RideListItem,
+  RideDetail,
+  RideCountByStatus,
+} from "./types";
+import { STORAGE_KEYS } from "./constants";
 
-interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  meta?: { page: number; per_page: number; total: number; total_pages: number };
-  error?: { code: string; message: string };
-}
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081/api/v1";
+export const API_BASE_URL = API_URL.replace("/api/v1", "");
+export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8081/ws";
 
 class ApiClient {
   private token: string | null = null;
+  private refreshing: Promise<boolean> | null = null;
 
   setToken(token: string | null) {
     this.token = token;
     if (typeof window === "undefined") return;
     if (token) {
-      localStorage.setItem("access_token", token);
+      localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
     } else {
-      localStorage.removeItem("access_token");
+      localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
     }
   }
 
   getToken(): string | null {
     if (this.token) return this.token;
     if (typeof window !== "undefined") {
-      this.token = localStorage.getItem("access_token");
+      this.token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     }
     return this.token;
   }
@@ -42,17 +58,54 @@ class ApiClient {
     const res = await fetch(`${API_URL}${path}`, {
       ...options,
       headers,
-      // Prevent Next.js from caching API responses
       cache: "no-store",
     });
 
-    const data = await res.json();
+    const data: ApiResponse<T> = await res.json();
+
+    if (!data.success && data.error?.code === "TOKEN_EXPIRED" && path !== "/auth/refresh") {
+      const refreshed = await this.tryRefresh();
+      if (refreshed) {
+        headers["Authorization"] = `Bearer ${this.getToken()}`;
+        const retry = await fetch(`${API_URL}${path}`, { ...options, headers, cache: "no-store" });
+        return retry.json();
+      }
+    }
+
     return data;
   }
 
-  // Auth
+  private async tryRefresh(): Promise<boolean> {
+    if (this.refreshing) return this.refreshing;
+
+    this.refreshing = (async () => {
+      try {
+        const res = await fetch(`${API_URL}/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+        });
+        const data: ApiResponse<AuthResponse> = await res.json();
+        if (data.success && data.data) {
+          this.setToken(data.data.access_token);
+          return true;
+        }
+        this.setToken(null);
+        return false;
+      } catch {
+        this.setToken(null);
+        return false;
+      } finally {
+        this.refreshing = null;
+      }
+    })();
+
+    return this.refreshing;
+  }
+
   async login(phone: string, password: string) {
-    const res = await this.request<{ user: any; access_token: string; expires_in: number }>("/auth/login", {
+    const res = await this.request<AuthResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ phone, password }),
     });
@@ -68,99 +121,101 @@ class ApiClient {
     return res;
   }
 
-  // User
   async getProfile() {
-    return this.request<any>("/users/me");
+    return this.request<User>("/users/me");
   }
 
-  // Admin
   async getDashboardStats() {
-    return this.request<any>("/admin/dashboard");
+    return this.request<DashboardStats>("/admin/dashboard");
   }
 
   async getDrivers(page = 1, perPage = 20, status = "", search = "") {
     const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
     if (status) params.set("status", status);
     if (search) params.set("search", search);
-    return this.request<any[]>(`/admin/drivers?${params}`);
+    return this.request<DriverListItem[]>(`/admin/drivers?${params}`);
   }
 
   async verifyDriver(driverId: string) {
-    return this.request(`/admin/drivers/${driverId}/verify`, { method: "PUT" });
+    return this.request<{ message: string }>(`/admin/drivers/${driverId}/verify`, { method: "PUT" });
   }
 
   async getDriverDetail(driverId: string) {
-    return this.request<any>(`/admin/drivers/${driverId}`);
+    return this.request<DriverDetail>(`/admin/drivers/${driverId}`);
   }
 
   async toggleDriverOnline(driverId: string, isOnline: boolean) {
-    return this.request(`/admin/drivers/${driverId}/status`, {
+    return this.request<{ message: string }>(`/admin/drivers/${driverId}/status`, {
       method: "PUT",
       body: JSON.stringify({ is_online: isOnline }),
     });
   }
 
-  // Analytics
   async getRevenueStats(period = "today") {
-    return this.request<any>(`/analytics/revenue?period=${period}`);
+    return this.request<RevenueStats>(`/analytics/revenue?period=${period}`);
   }
 
   async getRideStats(period = "today") {
-    return this.request<any>(`/analytics/rides?period=${period}`);
+    return this.request<RideStats>(`/analytics/rides?period=${period}`);
   }
 
   async getDailyRevenue(days = 7) {
-    return this.request<any[]>(`/analytics/revenue/daily?days=${days}`);
+    return this.request<DailyRevenue[]>(`/analytics/revenue/daily?days=${days}`);
   }
 
   async getDriverLeaderboard(limit = 10) {
-    return this.request<any[]>(`/analytics/drivers/leaderboard?limit=${limit}`);
+    return this.request<DriverPerformance[]>(`/analytics/drivers/leaderboard?limit=${limit}`);
   }
 
   async getRecentActivity(limit = 20) {
-    return this.request<any[]>(`/admin/activity?limit=${limit}`);
+    return this.request<ActivityItem[]>(`/admin/activity?limit=${limit}`);
   }
 
   async getDriverRides(driverId: string, limit = 5) {
-    return this.request<any[]>(`/admin/drivers/${driverId}/rides?limit=${limit}`);
+    return this.request<DriverRideItem[]>(`/admin/drivers/${driverId}/rides?limit=${limit}`);
   }
 
   async getPeakHours(days = 7) {
-    return this.request<any[]>(`/analytics/peak-hours?days=${days}`);
+    return this.request<PeakHourItem[]>(`/analytics/peak-hours?days=${days}`);
   }
 
   async bulkCancelStuckRides() {
     return this.request<{ cancelled: number; message: string }>("/admin/rides/bulk-cancel", { method: "PUT" });
   }
 
-  // Rides (user-scoped)
   async getRideHistory(page = 1, perPage = 20) {
-    return this.request<any[]>(`/rides/history?page=${page}&per_page=${perPage}`);
+    return this.request<RideListItem[]>(`/rides/history?page=${page}&per_page=${perPage}`);
   }
 
   async getRideCountsByStatus() {
-    return this.request<any[]>("/admin/rides/counts");
+    return this.request<RideCountByStatus[]>("/admin/rides/counts");
   }
 
   async adminCancelRide(rideId: string, reason = "Cancelled by admin") {
-    return this.request(`/admin/rides/${rideId}/cancel`, {
+    return this.request<{ message: string }>(`/admin/rides/${rideId}/cancel`, {
       method: "PUT",
       body: JSON.stringify({ reason }),
     });
   }
 
   async getAdminRideDetail(rideId: string) {
-    return this.request<any>(`/admin/rides/${rideId}`);
+    return this.request<RideDetail>(`/admin/rides/${rideId}`);
   }
 
-  // Admin rides (ALL rides)
   async getAdminRides(page = 1, perPage = 20, status = "", search = "") {
     const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
     if (status) params.set("status", status);
     if (search) params.set("search", search);
-    return this.request<any[]>(`/admin/rides?${params}`);
+    return this.request<RideListItem[]>(`/admin/rides?${params}`);
   }
 }
 
 export const api = new ApiClient();
 export type { ApiResponse };
+
+export function unwrap<T>(res: ApiResponse<T>): T {
+  if (!res.success || !res.data) {
+    throw new Error(res.error?.message || "Request failed");
+  }
+  return res.data;
+}

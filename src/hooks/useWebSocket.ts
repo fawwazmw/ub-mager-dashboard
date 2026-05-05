@@ -1,20 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { api } from "@/lib/api";
+import { api, WS_URL } from "@/lib/api";
+import type { WsMessage } from "@/lib/types";
+
+type WsMessageHandler = (msg: WsMessage) => void;
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "reconnecting";
 
-interface WsMessage {
-  type: string;
-  payload?: any;
-  target_user_id?: string;
-  correlation_id?: string;
-  timestamp: number;
-}
-
 interface UseWebSocketOptions {
-  onMessage?: (msg: WsMessage) => void;
+  onMessage?: WsMessageHandler;
   autoConnect?: boolean;
 }
 
@@ -24,6 +19,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempts = useRef(0);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  const onMessageRef = useRef(onMessage);
+  onMessageRef.current = onMessage;
   const maxReconnectAttempts = 10;
 
   const connect = useCallback(() => {
@@ -33,7 +30,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       return;
     }
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8081/ws";
+    const wsUrl = WS_URL;
     setStatus("connecting");
 
     try {
@@ -48,7 +45,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       ws.onmessage = (event) => {
         try {
           const msg: WsMessage = JSON.parse(event.data);
-          onMessage?.(msg);
+          onMessageRef.current?.(msg);
         } catch {
           // Ignore malformed messages
         }
@@ -84,7 +81,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     } catch {
       setStatus("disconnected");
     }
-  }, [onMessage]);
+  }, []);
 
   const disconnect = useCallback(() => {
     if (reconnectTimer.current) {

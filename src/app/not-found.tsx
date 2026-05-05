@@ -40,7 +40,7 @@ export default function NotFound() {
         </div>
 
         <div className="mt-10">
-          <img src="/ubmagerlogo.png" alt="UB-Mager" className="w-8 h-8 rounded mx-auto opacity-30" />
+          <img src="/ubmagerlogo.png" alt="UB Mager" className="w-8 h-8 rounded mx-auto opacity-30" />
         </div>
       </div>
     </div>

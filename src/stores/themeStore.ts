@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { STORAGE_KEYS } from "@/lib/constants";
 
 type Theme = "dark" | "light";
 
@@ -18,7 +19,7 @@ export const useThemeStore = create<ThemeState>((set) => ({
       const next = state.theme === "dark" ? "light" : "dark";
       if (typeof window !== "undefined") {
         document.documentElement.classList.toggle("dark", next === "dark");
-        localStorage.setItem("theme", next);
+        localStorage.setItem(STORAGE_KEYS.THEME, next);
       }
       return { theme: next };
     });
@@ -27,7 +28,7 @@ export const useThemeStore = create<ThemeState>((set) => ({
   setTheme: (theme) => {
     if (typeof window !== "undefined") {
       document.documentElement.classList.toggle("dark", theme === "dark");
-      localStorage.setItem("theme", theme);
+      localStorage.setItem(STORAGE_KEYS.THEME, theme);
     }
     set({ theme });
   },
@@ -35,7 +36,7 @@ export const useThemeStore = create<ThemeState>((set) => ({
 
 // Initialize theme from localStorage on load
 if (typeof window !== "undefined") {
-  const saved = localStorage.getItem("theme") as Theme | null;
+  const saved = localStorage.getItem(STORAGE_KEYS.THEME) as Theme | null;
   const theme = saved || "dark";
   document.documentElement.classList.toggle("dark", theme === "dark");
   useThemeStore.setState({ theme });

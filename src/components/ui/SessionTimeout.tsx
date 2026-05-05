@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { Clock } from "lucide-react";
+import { STORAGE_KEYS } from "@/lib/constants";
 
-const SESSION_DURATION = 14 * 60 * 1000;
+const SESSION_DURATION = parseInt(process.env.NEXT_PUBLIC_SESSION_TIMEOUT_MS || "840000", 10);
 const WARNING_BEFORE = 2 * 60 * 1000;
 
 export function SessionTimeout() {
@@ -16,7 +17,7 @@ export function SessionTimeout() {
 
   const resetTimer = useCallback(() => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("last_activity", Date.now().toString());
+      localStorage.setItem(STORAGE_KEYS.LAST_ACTIVITY, Date.now().toString());
     }
     setShowWarning(false);
   }, []);
@@ -30,7 +31,7 @@ export function SessionTimeout() {
     events.forEach((e) => window.addEventListener(e, resetTimer));
 
     const checker = setInterval(() => {
-      const lastActivity = parseInt(localStorage.getItem("last_activity") || "0");
+      const lastActivity = parseInt(localStorage.getItem(STORAGE_KEYS.LAST_ACTIVITY) || "0");
       const elapsed = Date.now() - lastActivity;
       const timeLeft = SESSION_DURATION - elapsed;
 

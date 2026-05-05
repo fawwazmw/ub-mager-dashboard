@@ -4,6 +4,6 @@ import { useEffect } from "react";
 
 export function usePageTitle(title: string) {
   useEffect(() => {
-    document.title = `${title} | UB-Mager`;
+    document.title = `${title} | UB Mager`;
   }, [title]);
 }

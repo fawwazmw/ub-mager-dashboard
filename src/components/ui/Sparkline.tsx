@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 interface SparklineProps {
   data: number[];
   color?: string;
@@ -8,6 +10,8 @@ interface SparklineProps {
 }
 
 export function Sparkline({ data, color = "hsl(42, 65%, 55%)", height = 32, width = 80 }: SparklineProps) {
+  const gradientId = useId();
+
   if (data.length < 2) return null;
 
   const max = Math.max(...data, 1);
@@ -23,23 +27,19 @@ export function Sparkline({ data, color = "hsl(42, 65%, 55%)", height = 32, widt
   const pathD = `M ${points.join(" L ")}`;
   const areaD = `${pathD} L ${width},${height} L 0,${height} Z`;
 
+  const lastY = height - ((data[data.length - 1] - min) / range) * (height - 4) - 2;
+
   return (
     <svg width={width} height={height} className="overflow-visible">
       <defs>
-        <linearGradient id={`spark-${color.replace(/[^a-z0-9]/g, "")}`} x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity={0.2} />
           <stop offset="100%" stopColor={color} stopOpacity={0} />
         </linearGradient>
       </defs>
-      <path d={areaD} fill={`url(#spark-${color.replace(/[^a-z0-9]/g, "")})`} />
+      <path d={areaD} fill={`url(#${gradientId})`} />
       <path d={pathD} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-      {/* Last point dot */}
-      <circle
-        cx={(data.length - 1) / (data.length - 1) * width}
-        cy={height - ((data[data.length - 1] - min) / range) * (height - 4) - 2}
-        r={2.5}
-        fill={color}
-      />
+      <circle cx={width} cy={lastY} r={2.5} fill={color} />
     </svg>
   );
 }

@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { downloadCSV } from "@/lib/csv";
+import { useDrivers, useDriverRides } from "@/hooks/useAnalytics";
+import type { DriverRideItem } from "@/lib/types";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/components/ui/Toast";
 import { CheckCircle, Circle, X, Car, Star, MapPin, Search, Download, Route } from "lucide-react";
@@ -9,26 +13,13 @@ import { useRouter } from "next/navigation";
 import { clsx } from "clsx";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { formatCurrency } from "@/lib/format";
 import { TimeAgo } from "@/components/ui/TimeAgo";
 
-interface Driver {
-  id: string;
-  user_id: string;
-  full_name: string;
-  phone: string;
-  vehicle_type: string;
-  license_plate: string;
-  is_online: boolean;
-  is_verified: boolean;
-  rating: number;
-  total_trips: number;
-  created_at: string;
-}
+type Driver = import("@/lib/types").DriverListItem;
 
 export default function DriversPage() {
   usePageTitle("Drivers");
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -36,21 +27,12 @@ export default function DriversPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showToggleConfirm, setShowToggleConfirm] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [driverRides, setDriverRides] = useState<any[]>([]);
-  const [ridesLoading, setRidesLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!selectedDriver) { setDriverRides([]); return; }
-    async function fetchDriverRides() {
-      setRidesLoading(true);
-      const res = await api.getDriverRides(selectedDriver!.id, 5);
-      if (res.success && res.data) setDriverRides(res.data);
-      setRidesLoading(false);
-    }
-    fetchDriverRides();
-  }, [selectedDriver]);
+  const { data: drivers = [], isLoading: loading } = useDrivers(1, 50, filter, search);
+  const { data: driverRides = [], isLoading: ridesLoading } = useDriverRides(selectedDriver?.id ?? null, 5);
 
   const pendingDrivers = drivers.filter(d => !d.is_verified);
   const hasSelection = selected.size > 0;
@@ -72,6 +54,10 @@ export default function DriversPage() {
     }
   }
 
+  function invalidateDrivers() {
+    queryClient.invalidateQueries({ queryKey: ["drivers"] });
+  }
+
   async function handleBulkVerify() {
     const ids = Array.from(selected);
     let success = 0;
@@ -81,17 +67,8 @@ export default function DriversPage() {
     }
     toast("success", `${success} driver(s) verified`);
     setSelected(new Set());
-    fetchDrivers();
+    invalidateDrivers();
   }
-
-  const fetchDrivers = useCallback(async () => {
-    setLoading(true);
-    const res = await api.getDrivers(1, 50, filter, search);
-    if (res.success && res.data) setDrivers(res.data);
-    setLoading(false);
-  }, [filter, search]);
-
-  useEffect(() => { fetchDrivers(); }, [fetchDrivers]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -99,20 +76,14 @@ export default function DriversPage() {
   }
 
   function exportDriversCSV() {
-    if (drivers.length === 0) return;
-    const headers = ["Name", "Phone", "Vehicle", "Plate", "Online", "Verified", "Rating", "Trips"];
-    const rows = drivers.map((d) => [
-      d.full_name, d.phone, d.vehicle_type, d.license_plate,
-      d.is_online, d.is_verified, d.rating, d.total_trips,
-    ]);
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `drivers-export-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCSV(
+      ["Name", "Phone", "Vehicle", "Plate", "Online", "Verified", "Rating", "Trips"],
+      drivers.map((d) => [
+        d.full_name, d.phone, d.vehicle_type, d.license_plate,
+        d.is_online, d.is_verified, d.rating, d.total_trips,
+      ]),
+      `drivers-export-${new Date().toISOString().slice(0, 10)}.csv`,
+    );
   }
 
   async function handleVerify(driverId: string) {
@@ -122,7 +93,7 @@ export default function DriversPage() {
     } else {
       toast("error", "Failed to verify driver");
     }
-    fetchDrivers();
+    invalidateDrivers();
     setSelectedDriver(null);
   }
 
@@ -173,7 +144,6 @@ export default function DriversPage() {
         </div>
       </div>
 
-      {/* Bulk action bar */}
       {hasSelection && (
         <div className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-3 mb-4 flex items-center justify-between">
           <span className="text-sm text-primary">{selected.size} driver(s) selected</span>
@@ -287,20 +257,18 @@ export default function DriversPage() {
         </div>
       </div>
 
-      {/* Driver Detail Modal */}
       {selectedDriver && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedDriver(null)} />
           <div className="relative bg-card border border-border rounded-xl p-6 w-full max-w-lg shadow-2xl animate-dialog">
-            {/* Close button */}
             <button
               onClick={() => setSelectedDriver(null)}
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Close driver detail"
             >
               <X size={18} />
             </button>
 
-            {/* Header */}
             <div className="flex items-center gap-4 mb-6">
               <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary text-lg font-bold">
                 {selectedDriver.full_name.charAt(0)}
@@ -311,7 +279,6 @@ export default function DriversPage() {
               </div>
             </div>
 
-            {/* Details */}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-muted/50 rounded-lg p-3">
@@ -384,7 +351,7 @@ export default function DriversPage() {
                           <p className="text-[10px] text-muted-foreground">{ride.passenger_name} • <TimeAgo date={ride.requested_at} /></p>
                         </div>
                         <div className="text-right shrink-0 ml-2">
-                          <p className="text-xs font-medium tabular-nums">Rp {ride.total_fare.toLocaleString("id-ID")}</p>
+                          <p className="text-xs font-medium tabular-nums">{formatCurrency(ride.total_fare)}</p>
                           <span className={clsx("text-[10px]",
                             ride.status === "COMPLETED" ? "text-green-400" :
                             ride.status === "CANCELLED" ? "text-destructive" : "text-blue-400"
@@ -441,7 +408,7 @@ export default function DriversPage() {
             const res = await api.toggleDriverOnline(selectedDriver.id, !selectedDriver.is_online);
             if (res.success) {
               toast("success", `Driver set to ${selectedDriver.is_online ? "offline" : "online"}`);
-              fetchDrivers();
+              invalidateDrivers();
               setSelectedDriver(null);
             } else {
               toast("error", "Failed to update driver status");

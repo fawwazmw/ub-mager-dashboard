@@ -1,10 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { api } from "@/lib/api";
+import type { DriverListItem, DriverLocation } from "@/lib/types";
 import { Wifi, WifiOff, Radio, Users, Car, Activity, ChevronRight, ChevronLeft } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -20,46 +23,32 @@ const LiveMap = dynamic(() => import("@/components/map/LiveMap"), {
   ),
 });
 
-interface DriverLocation {
-  user_id: string;
-  lat: number;
-  lng: number;
-  speed: number;
-  heading: number;
-}
-
 export default function LiveTrackingPage() {
   usePageTitle("Live Tracking");
   const [driverLocations, setDriverLocations] = useState<Map<string, DriverLocation>>(new Map());
   const [messageCount, setMessageCount] = useState(0);
-  const [liveStats, setLiveStats] = useState({ online: 0, total: 0, active_rides: 0 });
   const [mapFilter, setMapFilter] = useState<"all" | "online" | "offline">("all");
-  const [lastSync, setLastSync] = useState<Date | null>(null);
   const [showDriverList, setShowDriverList] = useState(false);
-  const [driverList, setDriverList] = useState<any[]>([]);
 
-  useEffect(() => {
-    async function fetchStats() {
-      const res = await api.getDashboardStats();
-      if (res.success && res.data) {
-        setLiveStats({
-          online: res.data.online_drivers,
-          total: res.data.total_drivers,
-          active_rides: res.data.active_rides,
-        });
-        setLastSync(new Date());
-      }
-      const driversRes = await api.getDrivers(1, 50, "");
-      if (driversRes.success && driversRes.data) {
-        setDriverList(driversRes.data);
-      }
-    }
-    fetchStats();
-    const interval = setInterval(fetchStats, 15000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data: statsData, dataUpdatedAt } = useDashboardStats();
+  const liveStats = {
+    online: statsData?.online_drivers ?? 0,
+    total: statsData?.total_drivers ?? 0,
+    active_rides: statsData?.active_rides ?? 0,
+  };
+  const lastSync = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
-  const handleMessage = useCallback((msg: any) => {
+  const { data: driverList = [] } = useQuery({
+    queryKey: ["drivers-list-tracking", 1, 50],
+    queryFn: async () => {
+      const res = await api.getDrivers(1, 50, "");
+      if (!res.success || !res.data) return [];
+      return res.data;
+    },
+    refetchInterval: 15_000,
+  });
+
+  const handleMessage = useCallback((msg: { type: string; payload?: unknown; target_user_id?: string }) => {
     if (msg.type === "LOCATION_UPDATE" && msg.payload) {
       const payload = typeof msg.payload === "string" ? JSON.parse(msg.payload) : msg.payload;
       setDriverLocations((prev) => {
@@ -164,12 +153,12 @@ export default function LiveTrackingPage() {
           <div className="w-72 bg-card border border-border rounded-xl overflow-hidden shrink-0 h-[calc(100vh-12rem)]">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
               <span className="text-xs font-medium">Drivers ({driverList.length})</span>
-              <span className="text-[10px] text-muted-foreground">{driverList.filter((d: any) => d.is_online).length} online</span>
+              <span className="text-[10px] text-muted-foreground">{driverList.filter((d) => d.is_online).length} online</span>
             </div>
             <div className="overflow-y-auto h-[calc(100%-40px)]">
               {driverList
-                .filter((d: any) => mapFilter === "all" || (mapFilter === "online" ? d.is_online : !d.is_online))
-                .map((driver: any) => (
+                .filter((d) => mapFilter === "all" || (mapFilter === "online" ? d.is_online : !d.is_online))
+                .map((driver) => (
                 <div key={driver.id} className="px-4 py-2.5 border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <div className="flex items-center gap-2">
                     <div className={clsx("w-2 h-2 rounded-full shrink-0", driver.is_online ? "bg-green-400" : "bg-muted-foreground/40")} />

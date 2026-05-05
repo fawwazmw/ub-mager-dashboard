@@ -1,73 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useThemeStore } from "@/stores/themeStore";
+import { useHealthCheck } from "@/hooks/useHealthCheck";
+import { API_URL, WS_URL } from "@/lib/api";
 import { CheckCircle, XCircle, RefreshCw, Sun, Moon, Trash2, AlertTriangle } from "lucide-react";
 import { clsx } from "clsx";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
-
-interface HealthCheck {
-  name: string;
-  url: string;
-  status: "checking" | "healthy" | "unhealthy";
-  latency?: number;
-}
+import { STORAGE_KEYS } from "@/lib/constants";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function SettingsPage() {
   usePageTitle("Settings");
   const { user } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
-  const [services, setServices] = useState<HealthCheck[]>([
-    { name: "API Server", url: "/health", status: "checking" },
-  ]);
-  const [checking, setChecking] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [apiInfo, setApiInfo] = useState<{ version?: string; time?: string; status?: string } | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  async function checkHealth() {
-    setChecking(true);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") || "http://localhost:8081";
+  const { data: health, isFetching: checking } = useHealthCheck();
+  const apiHealth = health?.status ?? "checking";
+  const apiLatency = health?.latency ?? null;
+  const apiInfo = health ? { version: health.version, time: health.time, status: health.status } : null;
 
-    const checks: HealthCheck[] = [
-      { name: "API Server", url: `${apiUrl}/health`, status: "checking" },
-    ];
+  const services = [{
+    name: "API Server",
+    status: apiHealth,
+    latency: apiLatency ?? undefined,
+  }];
 
-    const results = await Promise.all(
-      checks.map(async (check) => {
-        const start = Date.now();
-        try {
-          const res = await fetch(check.url, { cache: "no-store" });
-          const latency = Date.now() - start;
-          if (res.ok) {
-            return { ...check, status: "healthy" as const, latency };
-          }
-          return { ...check, status: "unhealthy" as const, latency };
-        } catch {
-          return { ...check, status: "unhealthy" as const, latency: Date.now() - start };
-        }
-      })
-    );
-
-    setServices(results);
-    setChecking(false);
-
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") || "http://localhost:8081";
-      const infoRes = await fetch(`${apiUrl}/health`, { cache: "no-store" });
-      if (infoRes.ok) {
-        const data = await infoRes.json();
-        setApiInfo({ version: data.version, time: data.time, status: data.status });
-      }
-    } catch {}
+  function refreshHealth() {
+    queryClient.invalidateQueries({ queryKey: ["health-check"] });
   }
-
-  useEffect(() => {
-    checkHealth();
-  }, []);
 
   return (
     <div>
@@ -89,7 +56,7 @@ export default function SettingsPage() {
               <span className="text-muted-foreground">Session</span>
               <span className="text-xs text-muted-foreground tabular-nums">
                 {(() => {
-                  const token = localStorage.getItem("access_token");
+                  const token = localStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
                   if (!token) return "No session";
                   try {
                     const payload = JSON.parse(atob(token.split(".")[1]));
@@ -147,7 +114,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-medium">System Health</h2>
             <button
-              onClick={checkHealth}
+              onClick={refreshHealth}
               disabled={checking}
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
             >
@@ -193,13 +160,13 @@ export default function SettingsPage() {
             <div>
               <p className="text-xs text-muted-foreground mb-1">REST API</p>
               <code className="text-xs bg-muted px-2 py-1 rounded block font-mono">
-                {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081/api/v1"}
+                {API_URL}
               </code>
             </div>
             <div>
               <p className="text-xs text-muted-foreground mb-1">WebSocket</p>
               <code className="text-xs bg-muted px-2 py-1 rounded block font-mono">
-                {process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8081/ws"}
+                {WS_URL}
               </code>
             </div>
             {apiInfo && (
@@ -250,8 +217,8 @@ export default function SettingsPage() {
           <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={() => {
-                localStorage.removeItem("sidebar_collapsed");
-                localStorage.removeItem("theme");
+                localStorage.removeItem(STORAGE_KEYS.SIDEBAR_COLLAPSED);
+                localStorage.removeItem(STORAGE_KEYS.THEME);
                 toast("success", "Preferences reset. Reloading...");
                 setTimeout(() => window.location.reload(), 800);
               }}

@@ -13,7 +13,7 @@ interface Command {
   id: string;
   label: string;
   sublabel?: string;
-  icon: any;
+  icon: React.ElementType;
   action: () => void;
   keywords?: string;
   group?: string;
@@ -49,7 +49,7 @@ export function CommandPalette() {
     ]);
     const results: Command[] = [];
     if (ridesRes.success && ridesRes.data) {
-      ridesRes.data.forEach((r: any) => {
+      ridesRes.data.forEach((r) => {
         results.push({
           id: `ride-${r.id}`,
           label: `${r.passenger_name}`,
@@ -61,7 +61,7 @@ export function CommandPalette() {
       });
     }
     if (driversRes.success && driversRes.data) {
-      driversRes.data.forEach((d: any) => {
+      driversRes.data.forEach((d) => {
         results.push({
           id: `driver-${d.id}`,
           label: d.full_name,

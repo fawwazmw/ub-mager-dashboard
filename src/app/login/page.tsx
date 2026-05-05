@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
+import { usePageTitle } from "@/hooks/usePageTitle";
 import { LogIn, Eye, EyeOff } from "lucide-react";
+import { STORAGE_KEYS } from "@/lib/constants";
 
 export default function LoginPage() {
   const [phone, setPhone] = useState("");
@@ -14,10 +16,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuthStore();
   const router = useRouter();
+  usePageTitle("Sign In");
 
   useEffect(() => {
-    document.title = "Sign In | UB-Mager";
-    const saved = localStorage.getItem("remembered_phone");
+    const saved = localStorage.getItem(STORAGE_KEYS.REMEMBERED_PHONE);
     if (saved) {
       setPhone(saved);
       setRemember(true);
@@ -30,9 +32,9 @@ export default function LoginPage() {
     setLoading(true);
 
     if (remember) {
-      localStorage.setItem("remembered_phone", phone);
+      localStorage.setItem(STORAGE_KEYS.REMEMBERED_PHONE, phone);
     } else {
-      localStorage.removeItem("remembered_phone");
+      localStorage.removeItem(STORAGE_KEYS.REMEMBERED_PHONE);
     }
 
     const result = await login(phone, password);
@@ -48,9 +50,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-full max-w-sm px-4">
         <div className="text-center mb-8 animate-page-in">
-          <img src="/ubmagerlogo.png" alt="UB-Mager" className="w-16 h-16 rounded-xl mx-auto mb-3" />
+          <img src="/ubmagerlogo.png" alt="UB Mager" className="w-16 h-16 rounded-xl mx-auto mb-3" />
           <h1 className="text-2xl font-bold">
-            <span className="text-primary">UB</span>-Mager
+            <span className="text-primary">UB</span> Mager
           </h1>
           <p className="text-sm text-muted-foreground mt-2">Operations Center</p>
         </div>
@@ -124,7 +126,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-[10px] text-muted-foreground mt-6">
-          UB-Mager Operations Center v1.0
+          UB Mager Operations Center v1.0
         </p>
       </div>
     </div>

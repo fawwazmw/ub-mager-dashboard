@@ -2,15 +2,7 @@
 
 import { create } from "zustand";
 import { api } from "@/lib/api";
-
-interface User {
-  id: string;
-  phone: string;
-  email: string;
-  full_name: string;
-  role: string;
-  avatar_url: string | null;
-}
+import type { User } from "@/lib/types";
 
 interface AuthState {
   user: User | null;
@@ -61,13 +53,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (res.success && res.data) {
         set({ user: res.data, isAuthenticated: true, isLoading: false });
       } else {
-        // Token invalid/expired
         api.setToken(null);
         set({ user: null, isAuthenticated: false, isLoading: false });
       }
     } catch {
-      // Network error — API might be down, but don't clear token
-      // Show as not authenticated so user gets redirected to login
       set({ isLoading: false, isAuthenticated: false });
     }
   },

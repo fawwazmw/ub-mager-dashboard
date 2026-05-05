@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Circle } from "react-leaflet";
+import { useQuery } from "@tanstack/react-query";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "@/lib/api";
+import type { DriverListItem } from "@/lib/types";
 
-// Green marker for online drivers
 const onlineIcon = new L.Icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
@@ -26,18 +27,6 @@ const offlineIcon = new L.Icon({
   shadowSize: [33, 33],
 });
 
-interface Driver {
-  id: string;
-  full_name: string;
-  phone: string;
-  vehicle_type: string;
-  license_plate: string;
-  is_online: boolean;
-  is_verified: boolean;
-  rating: number;
-  total_trips: number;
-}
-
 interface DriverLocation {
   user_id: string;
   lat: number;
@@ -52,25 +41,21 @@ interface LiveMapProps {
 }
 
 export default function LiveMap({ wsDriverLocations, filter = "all" }: LiveMapProps) {
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [onlineCount, setOnlineCount] = useState(0);
-
-  useEffect(() => {
-    async function fetchDrivers() {
+  const { data: drivers = [] } = useQuery({
+    queryKey: ["drivers-map", 1, 100],
+    queryFn: async () => {
       const res = await api.getDrivers(1, 100, "");
-      if (res.success && res.data) {
-        setDrivers(res.data);
-        setOnlineCount(res.data.filter((d: Driver) => d.is_online).length);
-      }
-    }
-    fetchDrivers();
-    const interval = setInterval(fetchDrivers, 10000);
-    return () => clearInterval(interval);
-  }, []);
+      if (!res.success || !res.data) return [];
+      return res.data;
+    },
+    refetchInterval: 10_000,
+  });
+
+  const onlineCount = useMemo(() => drivers.filter((d) => d.is_online).length, [drivers]);
 
   // Generate deterministic positions for drivers (demo mode)
   // In production, use actual lat/lng from driver profile or WS updates
-  function getDriverPosition(driver: Driver): [number, number] {
+  function getDriverPosition(driver: DriverListItem): [number, number] {
     // Check if we have a real-time WS position
     if (wsDriverLocations?.has(driver.id)) {
       const loc = wsDriverLocations.get(driver.id)!;

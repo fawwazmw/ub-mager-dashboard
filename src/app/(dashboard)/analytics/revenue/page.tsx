@@ -1,72 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { useState } from "react";
+import { useRevenueStats, useRideStats, useDailyRevenue, usePeakHours } from "@/hooks/useAnalytics";
+import { downloadCSV } from "@/lib/csv";
 import { DollarSign, TrendingUp, Route, BarChart3, Download, Clock, Car } from "lucide-react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { clsx } from "clsx";
+import { formatCurrency } from "@/lib/format";
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 
-interface RevenueStats {
-  period: string;
-  total_revenue: number;
-  total_rides: number;
-  avg_fare: number;
-  currency: string;
-}
-
-interface RideStats {
-  period: string;
-  total: number;
-  completed: number;
-  cancelled: number;
-  completion_rate: number;
-  avg_distance_km: number;
-  avg_duration_min: number;
-  by_vehicle_type: { vehicle_type: string; count: number }[];
-}
-
-interface DailyRevenue {
-  date: string;
-  revenue: number;
-  rides: number;
-}
-
 export default function AnalyticsPage() {
   usePageTitle("Analytics");
-  const [revenue, setRevenue] = useState<RevenueStats | null>(null);
-  const [prevRevenue, setPrevRevenue] = useState<RevenueStats | null>(null);
-  const [rideStats, setRideStats] = useState<RideStats | null>(null);
-  const [dailyData, setDailyData] = useState<DailyRevenue[]>([]);
-  const [peakHours, setPeakHours] = useState<{ hour: number; count: number }[]>([]);
   const [period, setPeriod] = useState("month");
   const [chartDays, setChartDays] = useState(14);
-  const [loading, setLoading] = useState(true);
 
   const prevPeriodMap: Record<string, string> = { today: "week", week: "month", month: "month" };
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      const [revRes, prevRevRes, rideRes, dailyRes, peakRes] = await Promise.all([
-        api.getRevenueStats(period),
-        api.getRevenueStats(prevPeriodMap[period] || "month"),
-        api.getRideStats(period),
-        api.getDailyRevenue(chartDays),
-        api.getPeakHours(chartDays),
-      ]);
-      if (revRes.success) setRevenue(revRes.data);
-      if (prevRevRes.success) setPrevRevenue(prevRevRes.data);
-      if (rideRes.success) setRideStats(rideRes.data);
-      if (dailyRes.success) setDailyData(dailyRes.data || []);
-      if (peakRes.success) setPeakHours(peakRes.data || []);
-      setLoading(false);
-    }
-    fetchData();
-  }, [period, chartDays]);
+  const { data: revenue, isLoading: revLoading } = useRevenueStats(period);
+  const { data: prevRevenue } = useRevenueStats(prevPeriodMap[period] || "month");
+  const { data: rideStats } = useRideStats(period);
+  const { data: dailyData = [] } = useDailyRevenue(chartDays);
+  const { data: peakHours = [] } = usePeakHours(chartDays);
+
+  const loading = revLoading;
 
   function pctChange(current: number, previous: number): { value: string; positive: boolean } | null {
     if (previous === 0) return null;
@@ -83,19 +42,11 @@ export default function AnalyticsPage() {
         </div>
         <div className="flex gap-2 items-center">
           <button
-            onClick={() => {
-              if (dailyData.length === 0) return;
-              const headers = ["Date", "Revenue", "Rides"];
-              const rows = dailyData.map((d) => [d.date, d.revenue, d.rides]);
-              const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-              const blob = new Blob([csv], { type: "text/csv" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `analytics-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
+            onClick={() => downloadCSV(
+              ["Date", "Revenue", "Rides"],
+              dailyData.map((d) => [d.date, d.revenue, d.rides]),
+              `analytics-${period}-${new Date().toISOString().slice(0, 10)}.csv`,
+            )}
             disabled={dailyData.length === 0}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-30"
           >
@@ -144,7 +95,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
               <p className="text-2xl font-bold tabular-nums">
-                Rp {(revenue?.total_revenue || 0).toLocaleString("id-ID")}
+                {formatCurrency(revenue?.total_revenue || 0)}
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-muted-foreground capitalize">{period}</span>
@@ -164,7 +115,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
               <p className="text-2xl font-bold tabular-nums">
-                Rp {(revenue?.avg_fare || 0).toLocaleString("id-ID", { maximumFractionDigits: 0 })}
+                {formatCurrency(revenue?.avg_fare || 0)}
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-muted-foreground">per ride</span>
@@ -249,7 +200,7 @@ export default function AnalyticsPage() {
                       fontSize: "12px",
                     }}
                     labelFormatter={(val) => new Date(val).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long" })}
-                    formatter={(value: number) => [`Rp ${value.toLocaleString("id-ID")}`, "Revenue"]}
+                    formatter={(value: number) => [formatCurrency(value), "Revenue"]}
                   />
                   <Area type="monotone" dataKey="revenue" stroke="hsl(42, 65%, 55%)" strokeWidth={2} fill="url(#revGrad)" />
                 </AreaChart>
@@ -436,7 +387,7 @@ export default function AnalyticsPage() {
                 <p className="text-xs text-muted-foreground mb-1">Avg Duration</p>
                 <p className="text-lg font-bold tabular-nums">{(rideStats?.avg_duration_min || 0).toFixed(0)} min</p>
               </div>
-              {(rideStats?.by_vehicle_type || []).map((vt: any) => (
+              {(rideStats?.by_vehicle_type || []).map((vt) => (
                 <div key={vt.vehicle_type}>
                   <p className="text-xs text-muted-foreground mb-1 capitalize">{vt.vehicle_type}</p>
                   <p className="text-lg font-bold tabular-nums">{vt.count}</p>

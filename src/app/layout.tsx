@@ -4,15 +4,15 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 
 export const metadata: Metadata = {
   title: {
-    default: "UB-Mager Operations Center",
-    template: "%s | UB-Mager",
+    default: "UB Mager Operations Center",
+    template: "%s | UB Mager",
   },
-  description: "Admin dashboard for UB-Mager ride-hailing platform — real-time tracking, driver management, and analytics",
-  applicationName: "UB-Mager",
+  description: "Admin dashboard for UB Mager ride-hailing platform — real-time tracking, driver management, and analytics",
+  applicationName: "UB Mager",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "UB-Mager",
+    title: "UB Mager",
   },
 };
 

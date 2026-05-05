@@ -1,80 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
+import { useRideDetail } from "@/hooks/useAnalytics";
 import { ArrowLeft, MapPin, User, Car, Clock, DollarSign, CheckCircle, XCircle } from "lucide-react";
+import { RIDE_STATUS_COLORS_BORDERED } from "@/lib/constants";
 import { clsx } from "clsx";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { formatCurrency } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const RideMap = dynamic(() => import("@/components/map/RideMap"), { ssr: false });
 
-interface RideDetail {
-  id: string;
-  passenger_name: string;
-  passenger_phone: string;
-  driver_name: string | null;
-  driver_phone: string | null;
-  driver_plate: string | null;
-  driver_vehicle: string | null;
-  status: string;
-  vehicle_type: string;
-  pickup_address: string;
-  pickup_lat: number;
-  pickup_lng: number;
-  dropoff_address: string;
-  dropoff_lat: number;
-  dropoff_lng: number;
-  estimated_distance_m: number;
-  estimated_duration_s: number;
-  actual_distance_m: number;
-  actual_duration_s: number;
-  base_fare: number;
-  surge_multiplier: number;
-  total_fare: number;
-  payment_method: string;
-  notes: string;
-  requested_at: string;
-  matched_at: string | null;
-  driver_arrived_at: string | null;
-  picked_up_at: string | null;
-  completed_at: string | null;
-  cancelled_at: string | null;
-  cancellation_reason: string;
-}
-
-const statusColors: Record<string, string> = {
-  SEARCHING: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
-  MATCHED: "text-blue-400 bg-blue-400/10 border-blue-400/20",
-  DRIVER_EN_ROUTE: "text-blue-400 bg-blue-400/10 border-blue-400/20",
-  ARRIVED_AT_PICKUP: "text-purple-400 bg-purple-400/10 border-purple-400/20",
-  IN_PROGRESS: "text-primary bg-primary/10 border-primary/20",
-  COMPLETED: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-  CANCELLED: "text-destructive bg-destructive/10 border-destructive/20",
-};
-
 export default function RideDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [ride, setRide] = useState<RideDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const rideId = params.id as string;
+  const { data: ride, isLoading: loading } = useRideDetail(rideId);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const { toast } = useToast();
-
-  useEffect(() => {
-    async function fetchRide() {
-      const res = await api.getAdminRideDetail(params.id as string);
-      if (res.success && res.data) {
-        setRide(res.data);
-      }
-      setLoading(false);
-    }
-    fetchRide();
-  }, [params.id]);
 
   if (loading) {
     return (
@@ -152,7 +102,6 @@ export default function RideDetailPage() {
 
   return (
     <div>
-      {/* Header */}
       <div className="flex items-center gap-4 mb-6 animate-page-in">
         <button
           onClick={() => router.back()}
@@ -177,7 +126,7 @@ export default function RideDetailPage() {
                 `Driver: ${ride.driver_name || "Unassigned"}`,
                 `Pickup: ${ride.pickup_address}`,
                 `Dropoff: ${ride.dropoff_address}`,
-                `Fare: Rp ${ride.total_fare.toLocaleString("id-ID")}`,
+                `Fare: ${formatCurrency(ride.total_fare)}`,
                 `Payment: ${ride.payment_method}`,
                 `Requested: ${new Date(ride.requested_at).toLocaleString("id-ID")}`,
               ].join("\n");
@@ -196,7 +145,7 @@ export default function RideDetailPage() {
               Cancel Ride
             </button>
           )}
-          <span className={clsx("text-xs px-3 py-1.5 rounded-lg border", statusColors[ride.status])}>
+          <span className={clsx("text-xs px-3 py-1.5 rounded-lg border", RIDE_STATUS_COLORS_BORDERED[ride.status])}>
             {ride.status}
           </span>
         </div>
@@ -253,7 +202,6 @@ export default function RideDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
-          {/* Route */}
           <div className="bg-card border border-border rounded-xl p-5">
             <h2 className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Route</h2>
             <div className="space-y-3">
@@ -280,7 +228,6 @@ export default function RideDetailPage() {
             )}
           </div>
 
-          {/* Map Preview */}
           <RideMap
             pickupLat={ride.pickup_lat}
             pickupLng={ride.pickup_lng}
@@ -290,7 +237,6 @@ export default function RideDetailPage() {
             dropoffAddress={ride.dropoff_address}
           />
 
-          {/* People */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-card border border-border rounded-xl p-5">
               <div className="flex items-center gap-2 mb-3">
@@ -349,7 +295,7 @@ export default function RideDetailPage() {
               </div>
             </div>
 
-            <p className="text-2xl font-bold tabular-nums mb-4">Rp {ride.total_fare.toLocaleString("id-ID")}</p>
+            <p className="text-2xl font-bold tabular-nums mb-4">{formatCurrency(ride.total_fare)}</p>
 
             {(() => {
               const baseFare = ride.base_fare || ride.total_fare * 0.35;
@@ -377,7 +323,7 @@ export default function RideDetailPage() {
                       <div key={seg.label} className="flex items-center gap-1.5">
                         <div className={clsx("w-2 h-2 rounded-full", seg.color)} />
                         <span className="text-[10px] text-muted-foreground">{seg.label}</span>
-                        <span className="text-[10px] tabular-nums font-medium">Rp {Math.round(seg.value).toLocaleString("id-ID")}</span>
+                        <span className="text-[10px] tabular-nums font-medium">{formatCurrency(Math.round(seg.value))}</span>
                       </div>
                     ))}
                   </div>
@@ -398,7 +344,6 @@ export default function RideDetailPage() {
           </div>
         </div>
 
-        {/* Right: Timeline */}
         <div className="bg-card border border-border rounded-xl p-5 h-fit">
           <h2 className="text-xs text-muted-foreground uppercase tracking-wider mb-4">Timeline</h2>
           <div className="space-y-4">
@@ -444,8 +389,7 @@ export default function RideDetailPage() {
           const res = await api.adminCancelRide(ride.id);
           if (res.success) {
             toast("success", "Ride cancelled");
-            const updated = await api.getAdminRideDetail(ride.id);
-            if (updated.success) setRide(updated.data);
+            queryClient.invalidateQueries({ queryKey: ["ride-detail", rideId] });
           } else {
             toast("error", "Failed to cancel ride");
           }

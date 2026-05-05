@@ -1,62 +1,47 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { api } from "@/lib/api";
+import { downloadCSV } from "@/lib/csv";
+import { useAdminRides, useRideCountsByStatus } from "@/hooks/useAnalytics";
+import type { RideListItem } from "@/lib/types";
 import { Search, Download, Route as RouteIcon, Trash2 } from "lucide-react";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { formatCurrency } from "@/lib/format";
 import { TimeAgo } from "@/components/ui/TimeAgo";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
+import { RIDE_STATUS_COLORS } from "@/lib/constants";
 import { clsx } from "clsx";
-
-interface Ride {
-  id: string;
-  passenger_name: string;
-  passenger_phone: string;
-  driver_name: string | null;
-  status: string;
-  vehicle_type: string;
-  pickup_address: string;
-  dropoff_address: string;
-  estimated_distance_m: number;
-  estimated_duration_s: number;
-  total_fare: number;
-  requested_at: string;
-  completed_at: string | null;
-}
-
-const statusColors: Record<string, string> = {
-  SEARCHING: "text-yellow-400 bg-yellow-400/10",
-  MATCHED: "text-blue-400 bg-blue-400/10",
-  DRIVER_EN_ROUTE: "text-blue-400 bg-blue-400/10",
-  ARRIVED_AT_PICKUP: "text-purple-400 bg-purple-400/10",
-  IN_PROGRESS: "text-primary bg-primary/10",
-  COMPLETED: "text-amber-400 bg-amber-400/10",
-  CANCELLED: "text-destructive bg-destructive/10",
-};
 
 const statusOptions = ["", "SEARCHING", "MATCHED", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
 
 export default function RidesPage() {
   usePageTitle("Rides");
-  const [rides, setRides] = useState<Ride[]>([]);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [focusedRow, setFocusedRow] = useState(-1);
   const [showBulkCancel, setShowBulkCancel] = useState(false);
   const [bulkCancelling, setBulkCancelling] = useState(false);
   const tableRef = useRef<HTMLTableSectionElement>(null);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const { data: ridesResult, isLoading: loading } = useAdminRides(page, 15, statusFilter, search);
+  const rides = ridesResult?.data ?? [];
+  const totalPages = ridesResult?.meta?.total_pages ?? 1;
+  const total = ridesResult?.meta?.total ?? 0;
+
+  const { data: countsData = [] } = useRideCountsByStatus();
+  const statusCounts: Record<string, number> = {};
+  countsData.forEach((item) => { statusCounts[item.status] = item.count; });
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -82,62 +67,27 @@ export default function RidesPage() {
 
   useEffect(() => { setFocusedRow(-1); }, [rides]);
 
-  useEffect(() => {
-    async function fetchCounts() {
-      const res = await api.getRideCountsByStatus();
-      if (res.success && res.data) {
-        const map: Record<string, number> = {};
-        res.data.forEach((item: any) => { map[item.status] = item.count; });
-        setStatusCounts(map);
-      }
-    }
-    fetchCounts();
-  }, []);
-
-  const fetchRides = useCallback(async () => {
-    setLoading(true);
-    const res = await api.getAdminRides(page, 15, statusFilter, search);
-    if (res.success) {
-      setRides(res.data || []);
-      if (res.meta) {
-        setTotalPages(res.meta.total_pages);
-        setTotal(res.meta.total);
-      }
-    }
-    setLoading(false);
-  }, [page, statusFilter, search]);
-
-  useEffect(() => { fetchRides(); }, [fetchRides]);
-
-  // Reset page when filter/search changes
-  useEffect(() => { setPage(1); }, [statusFilter, search]);
-
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     setSearch(searchInput);
+    setPage(1);
   }
 
   function exportCSV() {
-    if (rides.length === 0) return;
-    const headers = ["ID", "Passenger", "Driver", "Status", "Pickup", "Dropoff", "Fare", "Date"];
-    const rows = rides.map((r) => [
-      r.id,
-      r.passenger_name,
-      r.driver_name || "Unassigned",
-      r.status,
-      `"${r.pickup_address}"`,
-      `"${r.dropoff_address}"`,
-      r.total_fare,
-      new Date(r.requested_at).toISOString(),
-    ]);
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `rides-export-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCSV(
+      ["ID", "Passenger", "Driver", "Status", "Pickup", "Dropoff", "Fare", "Date"],
+      rides.map((r) => [
+        r.id,
+        r.passenger_name,
+        r.driver_name || "Unassigned",
+        r.status,
+        r.pickup_address,
+        r.dropoff_address,
+        r.total_fare,
+        new Date(r.requested_at).toISOString(),
+      ]),
+      `rides-export-${new Date().toISOString().slice(0, 10)}.csv`,
+    );
   }
 
   return (
@@ -187,7 +137,7 @@ export default function RidesPage() {
               return (
                 <button
                   key={s}
-                  onClick={() => setStatusFilter(s)}
+                  onClick={() => { setStatusFilter(s); setPage(1); }}
                   className={clsx(
                     "px-2.5 py-1.5 text-xs rounded-lg border transition-colors flex items-center gap-1.5",
                     statusFilter === s
@@ -282,12 +232,12 @@ export default function RidesPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={clsx("text-xs px-2 py-0.5 rounded", statusColors[ride.status] || "text-muted-foreground")}>
+                    <span className={clsx("text-xs px-2 py-0.5 rounded", RIDE_STATUS_COLORS[ride.status] || "text-muted-foreground")}>
                       {ride.status}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    Rp {ride.total_fare.toLocaleString("id-ID")}
+                    {formatCurrency(ride.total_fare)}
                   </td>
                   <td className="px-4 py-3 text-right text-muted-foreground text-xs">
                     <TimeAgo date={ride.requested_at} />
@@ -336,7 +286,8 @@ export default function RidesPage() {
           const res = await api.bulkCancelStuckRides();
           if (res.success && res.data) {
             toast("success", `${res.data.cancelled} stuck ride(s) cancelled`);
-            fetchRides();
+            queryClient.invalidateQueries({ queryKey: ["admin-rides"] });
+            queryClient.invalidateQueries({ queryKey: ["ride-counts-by-status"] });
           } else {
             toast("error", "Failed to cancel stuck rides");
           }

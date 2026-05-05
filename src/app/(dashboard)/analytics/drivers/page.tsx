@@ -1,39 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { useState } from "react";
+import { useDriverLeaderboard } from "@/hooks/useAnalytics";
+import { downloadCSV } from "@/lib/csv";
+import type { DriverPerformance } from "@/lib/types";
 import { Trophy, Star, Route, DollarSign, Download } from "lucide-react";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { clsx } from "clsx";
-
-interface DriverPerf {
-  id: string;
-  full_name: string;
-  phone: string;
-  vehicle_type: string;
-  license_plate: string;
-  rating: number;
-  total_trips: number;
-  total_revenue: number;
-  avg_fare: number;
-}
+import { formatCurrency } from "@/lib/format";
 
 type SortBy = "revenue" | "trips" | "rating";
 
 export default function DriverLeaderboardPage() {
   usePageTitle("Leaderboard");
-  const [drivers, setDrivers] = useState<DriverPerf[]>([]);
-  const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<SortBy>("revenue");
 
-  useEffect(() => {
-    async function fetch() {
-      const res = await api.getDriverLeaderboard(20);
-      if (res.success && res.data) setDrivers(res.data);
-      setLoading(false);
-    }
-    fetch();
-  }, []);
+  const { data: drivers = [], isLoading: loading } = useDriverLeaderboard(20);
 
   const sorted = [...drivers].sort((a, b) => {
     if (sortBy === "trips") return b.total_trips - a.total_trips;
@@ -42,20 +24,14 @@ export default function DriverLeaderboardPage() {
   });
 
   function exportCSV() {
-    if (drivers.length === 0) return;
-    const headers = ["Rank", "Name", "Phone", "Vehicle", "Plate", "Rating", "Trips", "Revenue", "Avg Fare"];
-    const rows = sorted.map((d, i) => [
-      i + 1, d.full_name, d.phone, d.vehicle_type, d.license_plate,
-      d.rating.toFixed(1), d.total_trips, d.total_revenue, d.avg_fare.toFixed(0),
-    ]);
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `driver-leaderboard-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCSV(
+      ["Rank", "Name", "Phone", "Vehicle", "Plate", "Rating", "Trips", "Revenue", "Avg Fare"],
+      sorted.map((d, i) => [
+        i + 1, d.full_name, d.phone, d.vehicle_type, d.license_plate,
+        d.rating.toFixed(1), d.total_trips, d.total_revenue, d.avg_fare.toFixed(0),
+      ]),
+      `driver-leaderboard-${new Date().toISOString().slice(0, 10)}.csv`,
+    );
   }
 
   const medals = ["🥇", "🥈", "🥉"];
@@ -122,7 +98,6 @@ export default function DriverLeaderboardPage() {
                 index < 3 ? "border-yellow-400/20" : "border-border"
               )}
             >
-              {/* Rank */}
               <div className="w-10 text-center">
                 {index < 3 ? (
                   <span className="text-xl">{medals[index]}</span>
@@ -131,7 +106,6 @@ export default function DriverLeaderboardPage() {
                 )}
               </div>
 
-              {/* Avatar */}
               <div className={clsx(
                 "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
                 index === 0 ? "bg-yellow-400/20 text-yellow-400" :
@@ -142,7 +116,6 @@ export default function DriverLeaderboardPage() {
                 {driver.full_name.charAt(0)}
               </div>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{driver.full_name}</p>
                 <p className="text-xs text-muted-foreground">
@@ -150,7 +123,6 @@ export default function DriverLeaderboardPage() {
                 </p>
               </div>
 
-              {/* Stats */}
               <div className="hidden sm:flex items-center gap-6">
                 <div className="text-center">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -174,14 +146,13 @@ export default function DriverLeaderboardPage() {
                 </div>
               </div>
 
-              {/* Revenue */}
               <div className="text-right">
                 <p className="text-xs text-muted-foreground">Revenue</p>
                 <p className={clsx(
                   "font-bold tabular-nums",
                   index === 0 ? "text-yellow-400" : "text-foreground"
                 )}>
-                  Rp {driver.total_revenue.toLocaleString("id-ID")}
+                  {formatCurrency(driver.total_revenue)}
                 </p>
               </div>
             </div>
