@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
+import { api, unwrap } from "@/lib/api";
 import { useRideDetail } from "@/hooks/useAnalytics";
 import { useAdminCancelRide } from "@/hooks/useMutations";
-import { ArrowLeft, MapPin, User, Car, Clock, DollarSign, CheckCircle, XCircle } from "lucide-react";
+import { ArrowLeft, MapPin, User, Car, Clock, DollarSign, CheckCircle, XCircle, MessageSquare } from "lucide-react";
 import { RIDE_STATUS_COLORS_BORDERED } from "@/lib/constants";
 import { clsx } from "clsx";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -20,6 +22,12 @@ export default function RideDetailPage() {
   const router = useRouter();
   const rideId = params.id as string;
   const { data: ride, isLoading: loading } = useRideDetail(rideId);
+  const { data: chatMessages = [] } = useQuery({
+    queryKey: ["ride-messages", rideId],
+    queryFn: () => api.getRideMessages(rideId).then(unwrap),
+    enabled: !!rideId,
+    staleTime: 30_000,
+  });
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const { toast } = useToast();
   const cancelRide = useAdminCancelRide();
@@ -373,6 +381,34 @@ export default function RideDetailPage() {
           )}
         </div>
       </div>
+
+      {chatMessages.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-5 mt-4">
+          <div className="flex items-center gap-2 mb-4">
+            <MessageSquare size={16} className="text-muted-foreground" />
+            <h3 className="text-sm font-medium">Chat Log ({chatMessages.length})</h3>
+          </div>
+          <div className="space-y-3 max-h-64 overflow-y-auto">
+            {chatMessages.map((msg) => (
+              <div key={msg.id} className="flex gap-3">
+                <div className="w-7 h-7 shrink-0 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
+                  {msg.sender_name.charAt(0)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium">{msg.sender_name}</span>
+                    <span className="text-[10px] text-muted-foreground">{msg.sender_role}</span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">
+                      {new Date(msg.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5">{msg.content}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={showCancelConfirm}

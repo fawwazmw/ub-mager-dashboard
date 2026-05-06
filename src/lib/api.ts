@@ -17,6 +17,7 @@ import type {
   RideCountByStatus,
   ReportListItem,
   UserListItem,
+  ChatMessageItem,
 } from "./types";
 import { STORAGE_KEYS } from "./constants";
 
@@ -241,6 +242,10 @@ class ApiClient {
 
   async unsuspendUser(userId: string) {
     return this.request<{ message: string }>(`/admin/users/${userId}/unsuspend`, { method: "PUT" });
+  }
+
+  async getRideMessages(rideId: string) {
+    return this.request<ChatMessageItem[]>(`/admin/rides/${rideId}/messages`);
   }
 }
 

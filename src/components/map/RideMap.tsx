@@ -1,8 +1,11 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, Polyline, Popup } from "react-leaflet";
+import { useEffect, useState } from "react";
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+
+const OSRM_URL = process.env.NEXT_PUBLIC_OSRM_URL || "https://osrm.wardaya.my.id";
 
 const pickupIcon = new L.Icon({
   iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png",
@@ -31,37 +34,83 @@ interface RideMapProps {
   dropoffAddress: string;
 }
 
-function generateCurvedRoute(
-  startLat: number, startLng: number,
-  endLat: number, endLng: number,
-  segments: number = 20
-): [number, number][] {
+function decodePolyline(encoded: string): [number, number][] {
   const points: [number, number][] = [];
-  const midLat = (startLat + endLat) / 2;
-  const midLng = (startLng + endLng) / 2;
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
 
-  const dLat = endLat - startLat;
-  const dLng = endLng - startLng;
-  const perpLat = -dLng * 0.15;
-  const perpLng = dLat * 0.15;
+  while (index < encoded.length) {
+    let shift = 0;
+    let result = 0;
+    let byte: number;
 
-  const ctrlLat = midLat + perpLat;
-  const ctrlLng = midLng + perpLng;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
 
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const lat = (1 - t) * (1 - t) * startLat + 2 * (1 - t) * t * ctrlLat + t * t * endLat;
-    const lng = (1 - t) * (1 - t) * startLng + 2 * (1 - t) * t * ctrlLng + t * t * endLng;
-    points.push([lat, lng]);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+
+    shift = 0;
+    result = 0;
+
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20);
+
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+
+    points.push([lat / 1e5, lng / 1e5]);
   }
 
   return points;
 }
 
+function FitBounds({ points }: { points: [number, number][] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (points.length > 1) {
+      const bounds = L.latLngBounds(points.map(([lat, lng]) => [lat, lng]));
+      map.fitBounds(bounds, { padding: [30, 30] });
+    }
+  }, [map, points]);
+
+  return null;
+}
+
 export default function RideMap({ pickupLat, pickupLng, pickupAddress, dropoffLat, dropoffLng, dropoffAddress }: RideMapProps) {
+  const [routePoints, setRoutePoints] = useState<[number, number][]>([
+    [pickupLat, pickupLng],
+    [dropoffLat, dropoffLng],
+  ]);
+
+  useEffect(() => {
+    async function fetchRoute() {
+      try {
+        const url = `${OSRM_URL}/route/v1/driving/${pickupLng},${pickupLat};${dropoffLng},${dropoffLat}?overview=full&geometries=polyline`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.code === "Ok" && data.routes?.[0]?.geometry) {
+          const decoded = decodePolyline(data.routes[0].geometry);
+          if (decoded.length > 0) {
+            setRoutePoints(decoded);
+          }
+        }
+      } catch {
+      }
+    }
+
+    fetchRoute();
+  }, [pickupLat, pickupLng, dropoffLat, dropoffLng]);
+
   const centerLat = (pickupLat + dropoffLat) / 2;
   const centerLng = (pickupLng + dropoffLng) / 2;
-  const routePoints = generateCurvedRoute(pickupLat, pickupLng, dropoffLat, dropoffLng);
 
   return (
     <div className="h-48 rounded-xl overflow-hidden border border-border">
@@ -69,9 +118,8 @@ export default function RideMap({ pickupLat, pickupLng, pickupAddress, dropoffLa
         center={[centerLat, centerLng]}
         zoom={13}
         className="h-full w-full"
-        zoomControl={false}
-        scrollWheelZoom={false}
-        dragging={false}
+        zoomControl={true}
+        scrollWheelZoom={true}
       >
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -84,12 +132,13 @@ export default function RideMap({ pickupLat, pickupLng, pickupAddress, dropoffLa
         </Marker>
         <Polyline
           positions={routePoints}
-          pathOptions={{ color: "hsl(42, 65%, 55%)", weight: 3, opacity: 0.8 }}
+          pathOptions={{ color: "hsl(42, 65%, 55%)", weight: 4, opacity: 0.9 }}
         />
         <Polyline
           positions={routePoints}
-          pathOptions={{ color: "hsl(42, 65%, 55%)", weight: 8, opacity: 0.15 }}
+          pathOptions={{ color: "hsl(42, 65%, 55%)", weight: 10, opacity: 0.1 }}
         />
+        <FitBounds points={routePoints} />
       </MapContainer>
     </div>
   );

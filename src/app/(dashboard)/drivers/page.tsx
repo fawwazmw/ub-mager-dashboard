@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { downloadCSV } from "@/lib/csv";
 import { useDrivers, useDriverRides } from "@/hooks/useAnalytics";
 import { useBulkVerifyDrivers, useVerifyDriver, useToggleDriverOnline } from "@/hooks/useMutations";
@@ -248,10 +249,11 @@ export default function DriversPage() {
         </div>
       </div>
 
-      {selectedDriver && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedDriver(null)} />
-          <div className="relative bg-card border border-border rounded-xl p-6 w-full max-w-lg shadow-2xl animate-dialog">
+      {selectedDriver && createPortal(
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedDriver(null)} />
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative bg-card border border-border rounded-xl p-6 w-full max-w-lg shadow-2xl animate-dialog">
             <button
               onClick={() => setSelectedDriver(null)}
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
@@ -378,7 +380,9 @@ export default function DriversPage() {
               )}
             </div>
           </div>
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {selectedDriver && (

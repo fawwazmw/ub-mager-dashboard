@@ -260,6 +260,15 @@ export interface UserListItem {
 export type ReportStatus = "PENDING" | "REVIEWED" | "RESOLVED";
 export type ReportCategory = "RUDE_BEHAVIOR" | "SAFETY_CONCERN" | "FRAUD" | "SPAM" | "OTHER";
 
+export interface ChatMessageItem {
+  id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_role: "ADMIN" | "DRIVER" | "PASSENGER";
+  content: string;
+  created_at: string;
+}
+
 export interface ReportListItem {
   id: string;
   reporter_name: string;
