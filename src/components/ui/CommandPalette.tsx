@@ -7,6 +7,7 @@ import {
   Search, LogOut, User, Hash,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { useToast } from "@/components/ui/Toast";
 import { api } from "@/lib/api";
 
 interface Command {
@@ -26,6 +27,7 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { logout } = useAuthStore();
+  const { toast } = useToast();
 
   const [dynamicResults, setDynamicResults] = useState<Command[]>([]);
   const searchTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -38,7 +40,7 @@ export function CommandPalette() {
     { id: "analytics", label: "Analytics", icon: BarChart3, action: () => router.push("/analytics/revenue"), keywords: "revenue chart", group: "Pages" },
     { id: "leaderboard", label: "Driver Leaderboard", icon: Trophy, action: () => router.push("/analytics/drivers"), keywords: "top performance", group: "Pages" },
     { id: "settings", label: "Settings", icon: Settings, action: () => router.push("/settings"), keywords: "config theme", group: "Pages" },
-    { id: "logout", label: "Sign Out", icon: LogOut, action: () => { logout(); router.push("/login"); }, keywords: "exit", group: "Actions" },
+    { id: "logout", label: "Sign Out", icon: LogOut, action: () => { toast("info", "Signed out"); logout(); router.push("/login"); }, keywords: "exit", group: "Actions" },
   ];
 
   const searchEntities = useCallback(async (q: string) => {

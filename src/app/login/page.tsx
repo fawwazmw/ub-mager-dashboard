@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useToast } from "@/components/ui/Toast";
 import { LogIn, Eye, EyeOff } from "lucide-react";
 import { STORAGE_KEYS } from "@/lib/constants";
 
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuthStore();
   const router = useRouter();
+  const { toast } = useToast();
   usePageTitle("Sign In");
 
   useEffect(() => {
@@ -39,8 +41,10 @@ export default function LoginPage() {
 
     const result = await login(phone, password);
     if (result.success) {
+      toast("success", "Welcome back!");
       router.push("/");
     } else {
+      toast("error", result.error || "Login failed");
       setError(result.error || "Login failed");
     }
     setLoading(false);

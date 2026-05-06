@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Providers } from "@/components/ui/Providers";
 
 export const metadata: Metadata = {
   title: {
@@ -32,8 +33,10 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="antialiased">
-        <ProgressBar />
-        {children}
+        <Providers>
+          <ProgressBar />
+          {children}
+        </Providers>
       </body>
     </html>
   );

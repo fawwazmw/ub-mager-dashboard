@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/authStore";
+import { useToast } from "@/components/ui/Toast";
 import { Clock } from "lucide-react";
 import { STORAGE_KEYS } from "@/lib/constants";
 
@@ -14,6 +15,7 @@ export function SessionTimeout() {
   const [remaining, setRemaining] = useState(0);
   const { logout, isAuthenticated } = useAuthStore();
   const router = useRouter();
+  const { toast } = useToast();
 
   const resetTimer = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -36,6 +38,7 @@ export function SessionTimeout() {
       const timeLeft = SESSION_DURATION - elapsed;
 
       if (timeLeft <= 0) {
+        toast("info", "Session expired. Please sign in again.");
         logout();
         router.push("/login");
       } else if (timeLeft <= WARNING_BEFORE) {

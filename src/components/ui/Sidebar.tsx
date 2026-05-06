@@ -24,6 +24,7 @@ import {
 import { useAuthStore } from "@/stores/authStore";
 import { useSidebarStore } from "@/stores/sidebarStore";
 import { useDashboardStats } from "@/hooks/useDashboardStats";
+import { useToast } from "@/components/ui/Toast";
 import { clsx } from "clsx";
 import { Tooltip } from "@/components/ui/Tooltip";
 
@@ -43,6 +44,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
   const { collapsed, toggle: toggleCollapsed } = useSidebarStore();
+  const { toast } = useToast();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { data: statsData, isError: apiOffline } = useDashboardStats();
   const apiOnline = !apiOffline;
@@ -189,7 +191,7 @@ export function Sidebar() {
         {collapsed ? (
           <Tooltip content="Sign out" position="right">
             <button
-              onClick={logout}
+              onClick={() => { toast("info", "Signed out"); logout(); }}
               className="w-full flex items-center justify-center py-2.5 ml-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
             >
               <LogOut size={16} />
@@ -197,7 +199,7 @@ export function Sidebar() {
           </Tooltip>
         ) : (
           <button
-            onClick={logout}
+            onClick={() => { toast("info", "Signed out"); logout(); }}
             className="flex items-center gap-2 text-xs text-muted-foreground hover:text-destructive transition-colors w-full px-3 py-2 rounded-lg hover:bg-destructive/10"
           >
             <LogOut size={14} />
