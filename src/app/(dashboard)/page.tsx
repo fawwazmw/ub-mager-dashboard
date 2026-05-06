@@ -13,6 +13,7 @@ import { Sparkline } from "@/components/ui/Sparkline";
 import { formatCurrency } from "@/lib/format";
 import { SkeletonCard } from "@/components/ui/Skeleton";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { QueryError } from "@/components/ui/QueryError";
 
 function StatCard({ label, value, icon: Icon, color = "primary", subtitle, sparkData }: { label: string; value: string | number; icon: React.ElementType; color?: string; subtitle?: string; sparkData?: number[] }) {
   const colorMap: Record<string, string> = {
@@ -56,13 +57,17 @@ export default function DashboardPage() {
   const router = useRouter();
   usePageTitle("Dashboard");
 
-  const { data: stats, dataUpdatedAt } = useDashboardStats();
+  const { data: stats, dataUpdatedAt, isError, refetch } = useDashboardStats();
   const { data: revenue } = useRevenueStats("month");
   const { data: dailyRevenue = [] } = useDailyRevenue(7);
   const { data: ridesResult } = useAdminRides(1, 5, "", "");
   const recentRides = ridesResult?.data ?? [];
 
-  const loading = !stats;
+  const loading = !stats && !isError;
+
+  if (isError) {
+    return <QueryError message="Failed to connect to API server" onRetry={() => refetch()} />;
+  }
 
   if (loading) {
     return (

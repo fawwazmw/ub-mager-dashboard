@@ -130,7 +130,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-[10px] text-muted-foreground mt-6">
-          UB Mager Operations Center v1.0
+          UB Mager Operations Center v0.1.0
         </p>
       </div>
     </div>

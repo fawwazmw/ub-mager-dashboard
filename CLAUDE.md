@@ -107,6 +107,33 @@ Copy `.env.example` to `.env.local`. Key variables:
 - Charts use Recharts with custom wrappers in `src/components/charts/`
 - Map tiles from OpenStreetMap via Leaflet
 
+## Git & Versioning
+
+Current version: `0.1.0` (in development)
+
+**Daily push:**
+```bash
+git add .
+git commit -m "feat: description"
+git push -u origin develop
+```
+
+**Commit prefixes:** `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`
+
+**Release a version:**
+```bash
+# 1. Update CHANGELOG.md
+# 2. Update version in package.json
+# 3. Commit + tag
+git add .
+git commit -m "chore: release v0.2.0"
+git push
+git tag v0.2.0
+git push --tags
+```
+
+**Bump rules:** bug fix → PATCH (`0.1.1`), new feature → MINOR (`0.2.0`), production release → `1.0.0`
+
 ## Related Repos
 
 - `ub-mager-api` — Main backend API (Go/Gin, port 8081)

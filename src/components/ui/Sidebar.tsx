@@ -112,7 +112,7 @@ export function Sidebar() {
 
   const sidebarContent = (
     <>
-      <div className={clsx("border-b border-border flex items-center py-4 gap-3 group/header overflow-hidden", collapsed ? "pl-[14px] justify-center" : "px-4")}>
+      <div className={clsx("border-b border-border flex items-center py-4 gap-3 group/header overflow-hidden", collapsed ? "pl-[17px]" : "pl-[1.2rem] pr-4")}>
         <div className="relative w-8 h-8 shrink-0">
           <img src="/ubmagerlogo.png" alt="UB Mager" className={clsx("w-8 h-8 rounded transition-opacity duration-200", collapsed && "group-hover/header:opacity-0")} />
           {collapsed && (
@@ -131,6 +131,7 @@ export function Sidebar() {
         )}>
           <h1 className="text-sm font-bold tracking-tight">
             <span className="text-primary">UB</span> Mager
+            <span className="ml-1.5 text-[9px] font-normal px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">v0.1.0</span>
           </h1>
           <p className="text-[10px] text-muted-foreground">Operations Center</p>
         </div>

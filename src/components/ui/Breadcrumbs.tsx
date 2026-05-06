@@ -71,6 +71,12 @@ export function Breadcrumbs() {
 
   return (
     <div className="sticky top-0 z-30 backdrop-blur-sm mb-6 px-4 lg:px-8">
+      {apiHealth === "unhealthy" && (
+        <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2 -mx-4 lg:-mx-8 flex items-center justify-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+          <span className="text-xs text-destructive">API server unreachable — data may be stale</span>
+        </div>
+      )}
       <div className="flex items-center gap-3 h-16">
         <nav className="flex items-center gap-1.5 text-xs text-muted-foreground flex-1 min-w-0">
           <Link href="/" className="hover:text-foreground transition-colors">
