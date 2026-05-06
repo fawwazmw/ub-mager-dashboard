@@ -20,6 +20,7 @@ import {
   WifiOff,
   Shield,
   Users,
+  ClipboardList,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useSidebarStore } from "@/stores/sidebarStore";
@@ -33,6 +34,7 @@ const navItems = [
   { href: "/live-tracking", label: "Live Tracking", icon: MapPin },
   { href: "/drivers", label: "Drivers", icon: Car },
   { href: "/rides", label: "Rides", icon: Route },
+  { href: "/tasks", label: "Tasks", icon: ClipboardList },
   { href: "/users", label: "Users", icon: Users },
   { href: "/reports", label: "Reports", icon: Shield },
   { href: "/analytics/revenue", label: "Analytics", icon: BarChart3 },

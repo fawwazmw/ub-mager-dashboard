@@ -18,6 +18,7 @@ import type {
   ReportListItem,
   UserListItem,
   ChatMessageItem,
+  AdminTaskItem,
 } from "./types";
 import { STORAGE_KEYS } from "./constants";
 
@@ -246,6 +247,14 @@ class ApiClient {
 
   async getRideMessages(rideId: string) {
     return this.request<ChatMessageItem[]>(`/admin/rides/${rideId}/messages`);
+  }
+
+  async getAdminTasks(page = 1, perPage = 20, category = "", status = "", search = "") {
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (category) params.set("category", category);
+    if (status) params.set("status", status);
+    if (search) params.set("search", search);
+    return this.request<AdminTaskItem[]>(`/admin/tasks?${params}`);
   }
 }
 

@@ -260,6 +260,21 @@ export interface UserListItem {
 export type ReportStatus = "PENDING" | "REVIEWED" | "RESOLVED";
 export type ReportCategory = "RUDE_BEHAVIOR" | "SAFETY_CONCERN" | "FRAUD" | "SPAM" | "OTHER";
 
+export type TaskCategory = "JASTIP_MAKANAN" | "JASTIP_BARANG" | "TITIP_PRINT" | "ANTAR_JEMPUT" | "OTHER";
+export type TaskStatus = "OPEN" | "ACCEPTED" | "PICKING_UP" | "DELIVERING" | "COMPLETED" | "CANCELLED";
+
+export interface AdminTaskItem {
+  id: string;
+  creator_name: string;
+  helper_name: string | null;
+  category: TaskCategory;
+  status: TaskStatus;
+  title: string;
+  fee: number;
+  created_at: string;
+  completed_at: string | null;
+}
+
 export interface ChatMessageItem {
   id: string;
   sender_id: string;
